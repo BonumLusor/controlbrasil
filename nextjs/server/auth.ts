@@ -1,99 +1,138 @@
-import { nanoid } from "nanoid";
-import { getUserByOpenId, upsertUser } from "./db";
+import { z } from "zod";
+import { publicProcedure, router } from "./_core/trpc";
+import { users, type User, type InsertUser } from "../drizzle/schema";
+import { getDb } from "./db";
+import { eq, or } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import { TRPCError } from "@trpc/server";
+import { COOKIE_NAME, ONE_YEAR_MS } from "../shared/const";
+import { getSessionCookieOptions } from "./_core/cookies";
+import crypto from "node:crypto";
 
 /**
- * Simple password hashing using Web Crypto API
- * For production, consider using bcrypt or argon2
+ * Helper para assinar tokens JWT nativamente (caso precise de fallback)
  */
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const passwordHash = await hashPassword(password);
-  return passwordHash === hash;
+function signNativeJwt(payload: object, secret: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", secret)
+    .update(`${header}.${data}`)
+    .digest("base64url");
+  return `${header}.${data}.${signature}`;
 }
 
 /**
- * Create a new user with password
+ * Função de autenticação ajustada para o seu routers.ts
+ * Retorna { success, error, user } para bater com a lógica do seu mutation de login
  */
-export async function createUserWithPassword(
-  email: string,
-  password: string,
-  name: string
-): Promise<{ success: boolean; error?: string; openId?: string }> {
-  // Generate unique openId for local users
-  const openId = `local_${nanoid(16)}`;
-  
-  // Check if email already exists
-  const existingUsers = await (await import("./db")).getDb();
-  if (!existingUsers) {
-    return { success: false, error: "Database not available" };
+export async function authenticateUser(email: string, password: string): Promise<{ 
+  success: boolean; 
+  error?: string; 
+  user?: User 
+}> {
+  const db = await getDb();
+  if (!db) {
+    return { success: false, error: "Database connection failed" };
   }
-  
-  const { users } = await import("../drizzle/schema");
-  const { eq } = await import("drizzle-orm");
-  
-  const existing = await existingUsers.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing.length > 0) {
-    return { success: false, error: "Email already registered" };
+
+  const identifier = email.trim().toLowerCase();
+  console.log(`[Auth] Tentativa de login para: ${identifier}`);
+
+  try {
+    const result = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.email, identifier),
+          eq(users.openId, email.trim())
+        )
+      )
+      .limit(1);
+
+    const user = result[0];
+
+    if (!user || !user.passwordHash) {
+      console.warn(`[Auth] Usuário não encontrado ou sem senha: ${identifier}`);
+      return { success: false, error: "Invalid email or password" };
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+    
+    if (!passwordMatch) {
+      console.warn(`[Auth] Senha incorreta para: ${identifier}`);
+      return { success: false, error: "Invalid email or password" };
+    }
+
+    // Atualiza o registro de login em background
+    db.update(users)
+      .set({ lastSignedIn: new Date(), updatedAt: new Date() })
+      .where(eq(users.id, user.id))
+      .execute()
+      .catch(e => console.error("[Auth] Erro ao atualizar timestamp:", e));
+
+    console.log(`[Auth] Login bem-sucedido: ${identifier}`);
+    return { success: true, user };
+  } catch (err) {
+    console.error("[Auth] Erro na query de autenticação:", err);
+    return { success: false, error: "Internal server error" };
   }
-  
-  const passwordHash = await hashPassword(password);
-  
-  await upsertUser({
-    openId,
-    email,
+}
+
+/**
+ * Função de criação de usuário ajustada para argumentos posicionais
+ * conforme usado no seu register: createUserWithPassword(email, password, name)
+ */
+export async function createUserWithPassword(email: string, password: string, name: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const [newUser] = await db.insert(users).values({
+    email: email.toLowerCase(),
     name,
     passwordHash,
-    loginMethod: "password",
-  });
-  
-  return { success: true, openId };
+    openId: crypto.randomUUID(),
+    role: "user",
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
+  } as InsertUser).returning();
+
+  return newUser;
 }
 
 /**
- * Authenticate user with email and password
+ * Router interno (opcional, já que você definiu o seu próprio auth no routers.ts)
  */
-export async function authenticateUser(
-  email: string,
-  password: string
-): Promise<{ success: boolean; error?: string; user?: any }> {
-  const db = await (await import("./db")).getDb();
-  if (!db) {
-    return { success: false, error: "Database not available" };
-  }
-  
-  const { users } = await import("../drizzle/schema");
-  const { eq } = await import("drizzle-orm");
-  
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  
-  if (result.length === 0) {
-    return { success: false, error: "Invalid email or password" };
-  }
-  
-  const user = result[0];
-  
-  if (!user.passwordHash) {
-    return { success: false, error: "This account uses a different login method" };
-  }
-  
-  const isValid = await verifyPassword(password, user.passwordHash);
-  
-  if (!isValid) {
-    return { success: false, error: "Invalid email or password" };
-  }
-  
-  // Update last signed in
-  await upsertUser({
-    openId: user.openId,
-    lastSignedIn: new Date(),
-  });
-  
-  return { success: true, user };
-}
+export const authRouter = router({
+  login: publicProcedure
+    .input(z.object({ email: z.string(), password: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await authenticateUser(input.email, input.password);
+      
+      if (!result.success || !result.user) {
+        return result;
+      }
+
+      const token = signNativeJwt(
+        { id: result.user.id, openId: result.user.openId, role: result.user.role, name: result.user.name || "" },
+        process.env.JWT_SECRET || "fallback_secret"
+      );
+
+      ctx.res.cookie(COOKIE_NAME, token, {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: ONE_YEAR_MS,
+      });
+
+      return result;
+    }),
+
+  me: publicProcedure.query(({ ctx }) => ctx.user),
+
+  logout: publicProcedure.mutation(({ ctx }) => {
+    ctx.res.clearCookie(COOKIE_NAME, getSessionCookieOptions(ctx.req));
+    return { success: true };
+  }),
+});
