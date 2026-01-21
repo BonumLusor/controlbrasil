@@ -25,6 +25,9 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
+  define: {
+    global: 'window', // Adicione esta linha se necessário
+  },
   server: {
     host: true,
     allowedHosts: [

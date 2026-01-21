@@ -1,3 +1,8 @@
+import { Buffer } from 'buffer';
+
+// Polyfill global para Buffer (necessário para @react-pdf/renderer)
+globalThis.Buffer = Buffer;
+
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

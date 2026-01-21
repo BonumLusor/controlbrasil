@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   serviceOrders,
@@ -13,11 +13,43 @@ function getFileNameFromUrl(url: string): string {
   return url.split('/').pop() || "unknown";
 }
 
-export async function getAllServiceOrders(): Promise<ServiceOrder[]> {
+// Helper para anexar imagens a uma lista de ordens de forma eficiente
+async function attachImagesToOrders(orders: ServiceOrder[]) {
+  const db = await getDb();
+  // Se não houver ordens, retorna lista vazia com campo images vazio
+  if (!db || orders.length === 0) return orders.map(o => ({ ...o, images: [] as string[] }));
+
+  const orderIds = orders.map(o => o.id);
+  
+  // Busca todas as imagens relacionadas às ordens listadas em uma única query
+  const images = await db
+    .select()
+    .from(serviceOrderImages)
+    .where(inArray(serviceOrderImages.serviceOrderId, orderIds));
+
+  // Agrupa as imagens por ID da ordem
+  const imgMap = new Map<number, string[]>();
+  images.forEach(img => {
+    if (!imgMap.has(img.serviceOrderId)) {
+      imgMap.set(img.serviceOrderId, []);
+    }
+    imgMap.get(img.serviceOrderId)?.push(img.imageUrl);
+  });
+
+  // Retorna as ordens com o array de imagens anexado
+  return orders.map(order => ({
+    ...order,
+    images: imgMap.get(order.id) || []
+  }));
+}
+
+export async function getAllServiceOrders(): Promise<(ServiceOrder & { images: string[] })[]> {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(serviceOrders).orderBy(desc(serviceOrders.createdAt));
+  const orders = await db.select().from(serviceOrders).orderBy(desc(serviceOrders.createdAt));
+  
+  return await attachImagesToOrders(orders);
 }
 
 export async function getServiceOrderById(id: number): Promise<(ServiceOrder & { images: string[] }) | undefined> {

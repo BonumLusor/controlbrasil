@@ -33,6 +33,10 @@ import { Edit, Plus, Trash2, Upload, X, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import { ServiceOrderPDF } from '@/components/reports/ServiceOrderPDF'; // Ajuste o caminho conforme onde criou o arquivo
+import { FileText } from 'lucide-react'; // Ícone para o botão
+
 type ServiceOrderFormData = {
   id?: number;
   orderNumber: string;
@@ -98,13 +102,13 @@ export default function ServiceOrders() {
   const { data: orders, isLoading } = trpc.serviceOrders.list.useQuery();
   const { data: customers } = trpc.customers.list.useQuery();
   const { data: employees } = trpc.employees.listActive.useQuery();
-  
+
   // Queries e Mutations auxiliares
   const { refetch: fetchNextNumber, isFetching: isLoadingNumber } = trpc.serviceOrders.getNextNumber.useQuery(undefined, {
     enabled: false,
     refetchOnWindowFocus: false
   });
-  
+
   const uploadMutation = trpc.serviceOrders.uploadImage.useMutation();
 
   const createMutation = trpc.serviceOrders.create.useMutation({
@@ -147,7 +151,7 @@ export default function ServiceOrders() {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       const reader = new FileReader();
-      
+
       const toastId = toast.loading("Enviando imagem...");
 
       reader.onload = async (event) => {
@@ -157,7 +161,7 @@ export default function ServiceOrders() {
             file: base64,
             fileName: file.name
           });
-          
+
           setFormData(prev => ({
             ...prev,
             images: [...prev.images, result.url]
@@ -170,7 +174,7 @@ export default function ServiceOrders() {
           console.error(error);
         }
       };
-      
+
       reader.readAsDataURL(file);
     }
   };
@@ -201,11 +205,11 @@ export default function ServiceOrders() {
     // Carregar dados iniciais básicos
     setIsEditing(true);
     setIsDialogOpen(true);
-    
+
     // Busca os dados completos (incluindo imagens) do servidor
     try {
       const fullOrder = await utils.serviceOrders.getById.fetch({ id: order.id });
-      
+
       if (fullOrder) {
         setFormData({
           id: fullOrder.id,
@@ -243,10 +247,10 @@ export default function ServiceOrders() {
       // Busca o próximo número do backend
       const { data: nextNumber } = await fetchNextNumber();
       const orderNumber = nextNumber ? `OS${nextNumber}` : "OS600";
-      
-      setFormData({ 
-        ...initialFormData, 
-        orderNumber: orderNumber 
+
+      setFormData({
+        ...initialFormData,
+        orderNumber: orderNumber
       });
       setIsDialogOpen(true);
     } catch (err) {
@@ -336,6 +340,36 @@ export default function ServiceOrders() {
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+
+                          {/* INÍCIO DO BOTÃO DE PDF */}
+                          <PDFDownloadLink
+                            document={
+                              <ServiceOrderPDF
+                                order={order}
+                                customer={customers?.find(c => c.id === order.customerId)}
+                                technician={employees?.find(e => e.id === order.technicianId)}
+                              />
+                            }
+                            fileName={`OS-${order.orderNumber}.pdf`}
+                          >
+                            {/* @ts-ignore */}
+                            {({ loading }) => (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={loading}
+                                title="Exportar PDF"
+                              >
+                                {loading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <FileText className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+                          </PDFDownloadLink>
+                          {/* FIM DO BOTÃO DE PDF */}
+
                           <Button
                             variant="outline"
                             size="sm"
@@ -480,11 +514,11 @@ export default function ServiceOrders() {
                   <div className="flex flex-wrap gap-4 p-4 border rounded-md bg-slate-50 dark:bg-slate-900">
                     {formData.images.map((url, idx) => (
                       <div key={idx} className="relative group w-24 h-24 border rounded overflow-hidden bg-white">
-                        <img 
-                            src={url} 
-                            alt={`Anexo ${idx + 1}`} 
-                            className="w-full h-full object-cover" 
-                            onClick={() => window.open(url, '_blank')}
+                        <img
+                          src={url}
+                          alt={`Anexo ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onClick={() => window.open(url, '_blank')}
                         />
                         <button
                           type="button"
@@ -495,20 +529,20 @@ export default function ServiceOrders() {
                         </button>
                       </div>
                     ))}
-                    
+
                     <label className="w-24 h-24 border-2 border-dashed border-slate-300 rounded flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-slate-100 transition-all">
                       {uploadMutation.isPending ? (
-                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       ) : (
-                         <Upload className="h-6 w-6 text-muted-foreground" />
+                        <Upload className="h-6 w-6 text-muted-foreground" />
                       )}
                       <span className="text-xs text-muted-foreground mt-1">Adicionar</span>
-                      <input 
-                        type="file" 
-                        className="hidden" 
-                        accept="image/*" 
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
                         onChange={handleFileChange}
-                        disabled={uploadMutation.isPending} 
+                        disabled={uploadMutation.isPending}
                       />
                     </label>
                   </div>
@@ -614,8 +648,8 @@ export default function ServiceOrders() {
                   {createMutation.isPending || updateMutation.isPending
                     ? "Salvando..."
                     : isEditing
-                    ? "Atualizar"
-                    : "Criar Ordem"}
+                      ? "Atualizar"
+                      : "Criar Ordem"}
                 </Button>
               </DialogFooter>
             </form>
