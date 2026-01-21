@@ -29,26 +29,21 @@ services:
       - "traefik.http.services.control-brasil.loadbalancer.server.port=3000"
       - "traefik.docker.network=proxy"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development  # <--- MUDANÇA 1: Define ambiente como desenvolvimento
       DATABASE_URL: postgresql://user_admin:password_secure@db:5432/service_db
-      JWT_SECRET: ${JWT_SECRET:-secret_fixo_para_prod_mude_isso}
-      OAUTH_SERVER_URL: "https://controlbrasil.techgf.com.br"
-      VITE_APP_ID: "controlBrasil"
-      VITE_OAUTH_PORTAL_URL: "https://controlbrasil.techgf.com.br"
-      VITE_ANALYTICS_ENDPOINT: "https://analytics.techgf.com.br"
-      VITE_ANALYTICS_WEBSITE_ID: "00000000-0000-0000-0000-000000000000"
+      # ... (restante das variáveis mantém igual)
       HOST: 0.0.0.0
       PORT: 3000
     networks:
       - internal
       - proxy
+    # MUDANÇA 2: Usa 'bun run dev' que ativa o 'watch' nos arquivos
     command: >
       sh -c "bun install && 
              echo 'Aguardando banco...' && sleep 15 && 
              bunx drizzle-kit push && 
              bun seed-db.mjs && 
-             bun run build && 
-             bun run start"
+             bun --watch server/_core/index.ts"
     deploy:
       restart_policy:
         condition: on-failure

@@ -46,12 +46,15 @@ export async function createPurchaseOrder(
   }, 0);
   
   // Create purchase order
+  // CORREÇÃO: Adicionado .returning()
   const result = await db.insert(purchaseOrders).values({
     ...orderData,
     totalAmount: totalAmount.toFixed(2),
-  });
+  }).returning({ id: purchaseOrders.id });
   
-  const purchaseOrderId = Number(result[0].insertId);
+  const purchaseOrderId = result[0]?.id;
+
+  if (!purchaseOrderId) throw new Error("Failed to insert purchase order");
   
   // Create purchase order items
   for (const item of items) {

@@ -50,9 +50,12 @@ export async function createComponent(data: InsertComponent): Promise<Component>
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db.insert(components).values(data);
-  const insertedId = Number(result[0].insertId);
+  // CORREÇÃO: Usando .returning() para PostgreSQL
+  const result = await db.insert(components).values(data).returning({ id: components.id });
+  const insertedId = result[0]?.id;
   
+  if (!insertedId) throw new Error("Failed to insert component");
+
   const component = await getComponentById(insertedId);
   if (!component) throw new Error("Failed to create component");
   

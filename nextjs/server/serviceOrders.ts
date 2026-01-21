@@ -58,9 +58,12 @@ export async function createServiceOrder(data: InsertServiceOrder): Promise<Serv
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db.insert(serviceOrders).values(data);
-  const insertedId = Number(result[0].insertId);
+  // CORREÇÃO: Adicionado .returning()
+  const result = await db.insert(serviceOrders).values(data).returning({ id: serviceOrders.id });
+  const insertedId = result[0]?.id;
   
+  if (!insertedId) throw new Error("Failed to insert service order");
+
   const order = await getServiceOrderById(insertedId);
   if (!order) throw new Error("Failed to create service order");
   

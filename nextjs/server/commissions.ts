@@ -25,6 +25,7 @@ export async function calculateCommission(
   const commissionAmount = (orderAmount * commissionRate / 100).toFixed(2);
   
   // Create commission record
+  // CORREÇÃO: Adicionado .returning()
   const result = await db.insert(commissions).values({
     employeeId,
     serviceOrderId,
@@ -32,9 +33,12 @@ export async function calculateCommission(
     commissionRate: commissionRate.toFixed(2),
     basedOnAmount: amount,
     paid: false,
-  });
+  }).returning({ id: commissions.id });
   
-  const insertedId = Number(result[0].insertId);
+  const insertedId = result[0]?.id;
+
+  if (!insertedId) throw new Error("Failed to insert commission");
+
   const commission = await db.select().from(commissions).where(eq(commissions.id, insertedId)).limit(1);
   
   if (!commission.length) throw new Error("Failed to create commission");

@@ -35,9 +35,14 @@ export async function createCustomer(data: InsertCustomer): Promise<Customer> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db.insert(customers).values(data);
-  const insertedId = Number(result[0].insertId);
+  // Adicionado .returning() para obter o ID gerado pelo Postgres
+  const result = await db.insert(customers).values(data).returning({ id: customers.id });
   
+  // Pega o ID do primeiro resultado retornado
+  const insertedId = result[0]?.id;
+  
+  if (!insertedId) throw new Error("Failed to insert customer");
+
   const customer = await getCustomerById(insertedId);
   if (!customer) throw new Error("Failed to create customer");
   
