@@ -29,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Edit, Plus, Trash2, Wrench } from "lucide-react";
+import { Edit, Plus, Trash2, Upload, X, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -50,6 +50,7 @@ type ServiceOrderFormData = {
   totalCost: string;
   receivedDate: Date;
   notes: string;
+  images: string[]; // Campo de imagens adicionado
 };
 
 const initialFormData: ServiceOrderFormData = {
@@ -68,6 +69,7 @@ const initialFormData: ServiceOrderFormData = {
   totalCost: "0.00",
   receivedDate: new Date(),
   notes: "",
+  images: [], // Inicializa array de imagens
 };
 
 const serviceTypes = [
@@ -96,6 +98,14 @@ export default function ServiceOrders() {
   const { data: orders, isLoading } = trpc.serviceOrders.list.useQuery();
   const { data: customers } = trpc.customers.list.useQuery();
   const { data: employees } = trpc.employees.listActive.useQuery();
+  
+  // Queries e Mutations auxiliares
+  const { refetch: fetchNextNumber, isFetching: isLoadingNumber } = trpc.serviceOrders.getNextNumber.useQuery(undefined, {
+    enabled: false,
+    refetchOnWindowFocus: false
+  });
+  
+  const uploadMutation = trpc.serviceOrders.uploadImage.useMutation();
 
   const createMutation = trpc.serviceOrders.create.useMutation({
     onSuccess: () => {
@@ -132,6 +142,46 @@ export default function ServiceOrders() {
     },
   });
 
+  // Manipulação de Imagens
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      
+      const toastId = toast.loading("Enviando imagem...");
+
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        try {
+          const result = await uploadMutation.mutateAsync({
+            file: base64,
+            fileName: file.name
+          });
+          
+          setFormData(prev => ({
+            ...prev,
+            images: [...prev.images, result.url]
+          }));
+          toast.dismiss(toastId);
+          toast.success("Imagem enviada!");
+        } catch (error) {
+          toast.dismiss(toastId);
+          toast.error("Erro ao enviar imagem.");
+          console.error(error);
+        }
+      };
+      
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = (indexToRemove: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, index) => index !== indexToRemove)
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -147,27 +197,39 @@ export default function ServiceOrders() {
     }
   };
 
-  const handleEdit = (order: any) => {
-    setFormData({
-      id: order.id,
-      orderNumber: order.orderNumber || "",
-      customerId: order.customerId || 0,
-      serviceType: order.serviceType || "manutencao_industrial",
-      equipmentDescription: order.equipmentDescription || "",
-      reportedIssue: order.reportedIssue || "",
-      diagnosis: order.diagnosis || "",
-      solution: order.solution || "",
-      status: order.status || "aberto",
-      receivedById: order.receivedById || 0,
-      technicianId: order.technicianId || 0,
-      laborCost: order.laborCost || "0.00",
-      partsCost: order.partsCost || "0.00",
-      totalCost: order.totalCost || "0.00",
-      receivedDate: order.receivedDate ? new Date(order.receivedDate) : new Date(),
-      notes: order.notes || "",
-    });
+  const handleEdit = async (order: any) => {
+    // Carregar dados iniciais básicos
     setIsEditing(true);
     setIsDialogOpen(true);
+    
+    // Busca os dados completos (incluindo imagens) do servidor
+    try {
+      const fullOrder = await utils.serviceOrders.getById.fetch({ id: order.id });
+      
+      if (fullOrder) {
+        setFormData({
+          id: fullOrder.id,
+          orderNumber: fullOrder.orderNumber || "",
+          customerId: fullOrder.customerId || 0,
+          serviceType: (fullOrder.serviceType as any) || "manutencao_industrial",
+          equipmentDescription: fullOrder.equipmentDescription || "",
+          reportedIssue: fullOrder.reportedIssue || "",
+          diagnosis: fullOrder.diagnosis || "",
+          solution: fullOrder.solution || "",
+          status: (fullOrder.status as any) || "aberto",
+          receivedById: fullOrder.receivedById || 0,
+          technicianId: fullOrder.technicianId || 0,
+          laborCost: fullOrder.laborCost || "0.00",
+          partsCost: fullOrder.partsCost || "0.00",
+          totalCost: fullOrder.totalCost || "0.00",
+          receivedDate: fullOrder.receivedDate ? new Date(fullOrder.receivedDate) : new Date(),
+          notes: fullOrder.notes || "",
+          images: fullOrder.images || [] // Aqui carregamos as imagens
+        });
+      }
+    } catch (err) {
+      toast.error("Erro ao carregar detalhes da ordem");
+    }
   };
 
   const handleDelete = (id: number) => {
@@ -176,10 +238,22 @@ export default function ServiceOrders() {
     }
   };
 
-  const handleNewOrder = () => {
-    const nextOrderNumber = `OS${Date.now().toString().slice(-8)}`;
-    setFormData({ ...initialFormData, orderNumber: nextOrderNumber });
-    setIsDialogOpen(true);
+  const handleNewOrder = async () => {
+    try {
+      // Busca o próximo número do backend
+      const { data: nextNumber } = await fetchNextNumber();
+      const orderNumber = nextNumber ? `OS${nextNumber}` : "OS600";
+      
+      setFormData({ 
+        ...initialFormData, 
+        orderNumber: orderNumber 
+      });
+      setIsDialogOpen(true);
+    } catch (err) {
+      toast.error("Erro ao gerar número.");
+      setFormData({ ...initialFormData, orderNumber: "OS600" });
+      setIsDialogOpen(true);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -216,8 +290,12 @@ export default function ServiceOrders() {
             <h1 className="text-3xl font-bold">Ordens de Serviço</h1>
             <p className="text-muted-foreground">Gerencie as ordens de serviço</p>
           </div>
-          <Button onClick={handleNewOrder}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button onClick={handleNewOrder} disabled={isLoadingNumber}>
+            {isLoadingNumber ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
             Nova Ordem
           </Button>
         </div>
@@ -287,7 +365,7 @@ export default function ServiceOrders() {
         </Card>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {isEditing ? "Editar Ordem de Serviço" : "Nova Ordem de Serviço"}
@@ -395,6 +473,45 @@ export default function ServiceOrders() {
                     }
                     rows={2}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Imagens e Documentos</Label>
+                  <div className="flex flex-wrap gap-4 p-4 border rounded-md bg-slate-50 dark:bg-slate-900">
+                    {formData.images.map((url, idx) => (
+                      <div key={idx} className="relative group w-24 h-24 border rounded overflow-hidden bg-white">
+                        <img 
+                            src={url} 
+                            alt={`Anexo ${idx + 1}`} 
+                            className="w-full h-full object-cover" 
+                            onClick={() => window.open(url, '_blank')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(idx)}
+                          className="absolute top-0 right-0 bg-red-500 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    <label className="w-24 h-24 border-2 border-dashed border-slate-300 rounded flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-slate-100 transition-all">
+                      {uploadMutation.isPending ? (
+                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      ) : (
+                         <Upload className="h-6 w-6 text-muted-foreground" />
+                      )}
+                      <span className="text-xs text-muted-foreground mt-1">Adicionar</span>
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={handleFileChange}
+                        disabled={uploadMutation.isPending} 
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

@@ -164,6 +164,20 @@ export type ServiceOrder = typeof serviceOrders.$inferSelect;
 export type InsertServiceOrder = typeof serviceOrders.$inferInsert;
 
 /**
+ * Imagens das Ordens de Serviço
+ */
+export const serviceOrderImages = pgTable("serviceOrderImages", {
+  id: serial("id").primaryKey(),
+  serviceOrderId: integer("serviceOrderId").notNull(),
+  imageUrl: text("imageUrl").notNull(),
+  fileName: varchar("fileName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ServiceOrderImage = typeof serviceOrderImages.$inferSelect;
+export type InsertServiceOrderImage = typeof serviceOrderImages.$inferInsert;
+
+/**
  * Transações Financeiras
  */
 export const transactions = pgTable("transactions", {
