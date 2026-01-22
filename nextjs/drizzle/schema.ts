@@ -3,7 +3,8 @@ import { pgTable, serial, text, varchar, timestamp, decimal, boolean, pgEnum, in
 // Enums para PostgreSQL
 export const roleEnum = pgEnum("role", ["user", "admin"]);
 export const componentTypeEnum = pgEnum("type", ["capacitor", "resistor", "indutor", "mosfet", "ci", "outros"]);
-export const poStatusEnum = pgEnum("status", ["pendente", "recebido_parcial", "recebido", "cancelado"]);
+// CORREÇÃO AQUI: Adicionado 'aguardando_entrega' na lista
+export const poStatusEnum = pgEnum("status", ["pendente", "aguardando_entrega", "recebido_parcial", "recebido", "cancelado"]);
 export const serviceTypeEnum = pgEnum("serviceType", ["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]);
 export const osStatusEnum = pgEnum("os_status", [
   "aberto",

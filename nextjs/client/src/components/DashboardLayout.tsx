@@ -34,8 +34,8 @@ const menuItems = [
   { icon: ShoppingCart, label: "Pedidos de Compra", path: "/purchase-orders" },
   { icon: Users, label: "Clientes", path: "/customers" },
   { icon: UserCog, label: "Funcionários", path: "/employees" },
-  { icon: DollarSign, label: "Comissões", path: "/commissions" },
-  { icon: TrendingUp, label: "Relatórios", path: "/reports" },
+  //{ icon: DollarSign, label: "Comissões", path: "/commissions" },
+  //{ icon: TrendingUp, label: "Relatórios", path: "/reports" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

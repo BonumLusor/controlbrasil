@@ -350,7 +350,7 @@ export default function ServiceOrders() {
                                 technician={employees?.find(e => e.id === order.technicianId)}
                               />
                             }
-                            fileName={`OS-${order.orderNumber}.pdf`}
+                            fileName={`${order.orderNumber}.pdf`}
                           >
                             {/* @ts-ignore */}
                             {({ loading }) => (

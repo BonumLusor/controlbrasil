@@ -103,10 +103,9 @@ export const appRouter = router({
         unitPrice: z.string().optional(),
         location: z.string().optional(),
         manufacturer: z.string().optional(),
-        partNumber: optionalString, // Aceita string vazia
+        partNumber: optionalString,
       }))
       .mutation(async ({ input }) => {
-        // CORREÇÃO: Limpa partNumber vazio para evitar erro de Unique Constraint
         const data = { ...input, partNumber: cleanEmpty(input.partNumber) };
         // @ts-ignore
         return await componentsDb.createComponent(data);
@@ -168,19 +167,25 @@ export const appRouter = router({
         supplier: z.string().optional(),
         orderDate: z.date().optional(),
         notes: z.string().optional(),
-        status: z.enum(["pendente", "recebido_parcial", "recebido", "cancelado"]).optional(),
+        status: z.enum(["pendente", "aguardando_entrega", "recebido_parcial", "recebido", "cancelado"]).optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
         return await purchaseOrdersDb.updatePurchaseOrder(id, data);
       }),
-    receive: protectedProcedure
+    // ROTA: APROVAR (Pendente -> Aguardando Entrega + Despesa)
+    approve: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => purchaseOrdersDb.approvePurchaseOrder(input.id)),
+    
+    // ROTA: RECEBER TUDO (Aguardando Entrega -> Recebido + Estoque)
+    receiveAll: protectedProcedure
       .input(z.object({
         id: z.number(),
-        receivedById: z.number(),
-        itemsReceived: z.array(z.object({ itemId: z.number(), quantityReceived: z.number() })),
+        receivedById: z.number()
       }))
-      .mutation(async ({ input }) => purchaseOrdersDb.receivePurchaseOrder(input.id, input.receivedById, input.itemsReceived)),
+      .mutation(async ({ input }) => purchaseOrdersDb.fullyReceivePurchaseOrder(input.id, input.receivedById)),
+      
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await purchaseOrdersDb.deletePurchaseOrder(input.id);
       return { success: true };
@@ -204,7 +209,6 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        // CORREÇÃO: Limpa CPF/CNPJ e Email vazios
         const data = { 
           ...input, 
           email: cleanEmpty(input.email),
@@ -250,23 +254,18 @@ export const appRouter = router({
     getNextNumber: protectedProcedure.query(async () => serviceOrdersDb.getNextOrderNumber()),
     uploadImage: protectedProcedure
       .input(z.object({ 
-        file: z.string(), // Base64
+        file: z.string(), 
         fileName: z.string() 
       }))
       .mutation(async ({ input }) => {
-        // Converter base64 para buffer se necessário, ou passar string direto
-        // O storagePut espera buffer ou string. Base64 precisa ser limpo do prefixo "data:image/..."
         const base64Data = input.file.split(';base64,').pop() || "";
         const buffer = Buffer.from(base64Data, 'base64');
-        
-        // Caminho único para evitar colisão
         const path = `service-orders/${Date.now()}-${input.fileName}`;
-        const result = await storagePut(path, buffer, "image/jpeg"); // Assumindo jpeg ou detectando mime
+        const result = await storagePut(path, buffer, "image/jpeg");
         return { url: result.url };
       }),
     create: protectedProcedure
       .input(z.object({
-        // ... campos existentes
         orderNumber: z.string().min(1),
         customerId: z.number(),
         serviceType: z.enum(["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]),
@@ -282,7 +281,7 @@ export const appRouter = router({
         totalCost: z.string().optional(),
         receivedDate: z.date(),
         notes: z.string().optional(),
-        images: z.array(z.string()).optional(), // NOVO CAMPO
+        images: z.array(z.string()).optional(),
       }))
       .mutation(async ({ input }) => {
         const { images, ...data } = input;
@@ -291,9 +290,7 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
-        // ... campos existentes opcionais
         orderNumber: z.string().optional(),
-        // ... (copiar todos os campos do create como optional)
         customerId: z.number().optional(),
         serviceType: z.enum(["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]).optional(),
         equipmentDescription: z.string().optional(),
@@ -309,7 +306,7 @@ export const appRouter = router({
         completedDate: z.date().optional(),
         deliveredDate: z.date().optional(),
         notes: z.string().optional(),
-        images: z.array(z.string()).optional(), // NOVO CAMPO
+        images: z.array(z.string()).optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, images, ...data } = input;
@@ -333,6 +330,8 @@ export const appRouter = router({
   reports: router({
     monthly: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getMonthlyReport(input.year, input.month)),
     yearly: protectedProcedure.input(z.object({ year: z.number() })).query(async ({ input }) => reportsDb.getYearlyReport(input.year)),
+    byCategory: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getRevenueByCategory(input.year, input.month)),
+    byCustomer: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getRevenueByCustomer(input.year, input.month)),
   }),
 });
 

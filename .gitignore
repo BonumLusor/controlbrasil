@@ -8,7 +8,7 @@ nextjs/**/dist
 nextjs/**/build
 
 # Upload folder
-upload/
+**/upload/
 
 # Dependencies
 node_modules/

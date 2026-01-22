@@ -29,9 +29,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Edit, Plus, ShoppingCart, Trash2, Package } from "lucide-react";
+import { Edit, Plus, ShoppingCart, Trash2, Package, CheckCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type OrderItem = {
   componentId: number;
@@ -68,6 +69,7 @@ export default function PurchaseOrders() {
   });
 
   const utils = trpc.useUtils();
+  const { data: user } = trpc.auth.me.useQuery();
   const { data: orders, isLoading } = trpc.purchaseOrders.list.useQuery();
   const { data: components } = trpc.components.list.useQuery();
 
@@ -81,6 +83,42 @@ export default function PurchaseOrders() {
     },
     onError: (error) => {
       toast.error("Erro ao criar pedido: " + error.message);
+    },
+  });
+
+  // Mutation para Negar/Cancelar
+  const updateMutation = trpc.purchaseOrders.update.useMutation({
+    onSuccess: () => {
+      toast.success("Status atualizado!");
+      utils.purchaseOrders.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error("Erro: " + error.message);
+    },
+  });
+
+  // Mutation para Aprovar (Gera despesa e muda status para Aguardando Entrega)
+  const approveMutation = trpc.purchaseOrders.approve.useMutation({
+    onSuccess: () => {
+      toast.success("Pedido Aprovado!");
+      toast.info("Despesa registrada no financeiro.");
+      utils.purchaseOrders.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error("Erro ao aprovar: " + error.message);
+    },
+  });
+
+  // Mutation para Receber Tudo (Entra no estoque)
+  const receiveAllMutation = trpc.purchaseOrders.receiveAll.useMutation({
+    onSuccess: () => {
+      toast.success("Pedido Recebido!");
+      toast.info("Itens adicionados ao estoque.");
+      utils.purchaseOrders.list.invalidate();
+      utils.components.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error("Erro ao receber: " + error.message);
     },
   });
 
@@ -152,6 +190,25 @@ export default function PurchaseOrders() {
     }
   };
 
+  const handleApprove = (id: number) => {
+    if (confirm("Aprovar pedido? Uma despesa será lançada no financeiro.")) {
+      approveMutation.mutate({ id });
+    }
+  };
+
+  const handleDeny = (id: number) => {
+    if (confirm("Negar pedido?")) {
+      updateMutation.mutate({ id, status: "cancelado" });
+    }
+  };
+
+  const handleReceive = (id: number) => {
+    if (!user) return;
+    if (confirm("Confirmar chegada? Os itens entrarão no estoque.")) {
+      receiveAllMutation.mutate({ id, receivedById: user.id });
+    }
+  };
+
   const handleNewOrder = () => {
     const nextOrderNumber = `PO${Date.now().toString().slice(-8)}`;
     setFormData({ ...initialFormData, orderNumber: nextOrderNumber });
@@ -160,10 +217,11 @@ export default function PurchaseOrders() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      pendente: { label: "Pendente", variant: "secondary" },
+      pendente: { label: "Aguardando Aprovação", variant: "secondary" }, // Amarelo/Cinza
+      aguardando_entrega: { label: "Aguardando Entrega", variant: "default" }, // Azul/Padrão
       recebido_parcial: { label: "Parcial", variant: "outline" },
-      recebido: { label: "Recebido", variant: "default" },
-      cancelado: { label: "Cancelado", variant: "destructive" },
+      recebido: { label: "Recebido", variant: "default" }, // Verde (pode ser ajustado com classe extra se quiser)
+      cancelado: { label: "Negado", variant: "destructive" }, // Vermelho
     };
 
     const statusInfo = statusMap[status] || statusMap.pendente;
@@ -181,7 +239,7 @@ export default function PurchaseOrders() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Pedidos de Compra</h1>
-            <p className="text-muted-foreground">Gerencie os pedidos de componentes</p>
+            <p className="text-muted-foreground">Gerencie o fluxo de compras</p>
           </div>
           <Button onClick={handleNewOrder}>
             <Plus className="mr-2 h-4 w-4" />
@@ -224,13 +282,87 @@ export default function PurchaseOrders() {
                       </TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(order.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          
+                          {/* Botões para Pendente (Aguardando Aprovação) */}
+                          {order.status === "pendente" && (
+                            <>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                      onClick={() => handleApprove(order.id)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Aprovar (Gera despesa)</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => handleDeny(order.id)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Negar Pedido</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </>
+                          )}
+
+                          {/* Botão para Aguardando Entrega */}
+                          {order.status === "aguardando_entrega" && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                    onClick={() => handleReceive(order.id)}
+                                  >
+                                    <Package className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Confirmar Chegada (Entra no estoque)</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDelete(order.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Excluir Registro</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -244,6 +376,7 @@ export default function PurchaseOrders() {
           </CardContent>
         </Card>
 
+        {/* Dialog (Modal) - Mantido igual */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
