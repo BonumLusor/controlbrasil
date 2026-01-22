@@ -12,6 +12,7 @@ import PurchaseOrders from "./pages/PurchaseOrders";
 import Customers from "./pages/Customers";
 import ServiceOrders from "./pages/ServiceOrders";
 import Dashboard from "./pages/Dashboard";
+import Sales from "./pages/Sales"; // Importe a nova página
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -26,6 +27,8 @@ function Router() {
       <Route path={"/customers"} component={Customers} />
       <Route path={"/service-orders"} component={ServiceOrders} />
       <Route path={"/404"} component={NotFound} />
+      <Route path={"/inventory"} component={Inventory} />
+      <Route path={"/sales"} component={Sales} /> {/* Nova Rota */}
       {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>

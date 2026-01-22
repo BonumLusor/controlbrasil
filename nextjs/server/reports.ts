@@ -1,6 +1,6 @@
 import { and, gte, lte, sql, eq, inArray, desc } from "drizzle-orm";
 import { getDb } from "./db";
-import { serviceOrders, transactions, commissions, customers } from "../drizzle/schema";
+import { serviceOrders, purchaseOrders, sales, commissions, customers } from "../drizzle/schema";
 
 export type MonthlyReport = {
   month: number;
@@ -10,46 +10,52 @@ export type MonthlyReport = {
   totalCommissions: number;
   netProfit: number;
   serviceOrdersCount: number;
+  salesCount: number;
 };
 
+// --- Relatório Mensal (Baseado nas tabelas reais) ---
 export async function getMonthlyReport(year: number, month: number): Promise<MonthlyReport> {
   const db = await getDb();
-  if (!db) {
-    return {
-      month, year, totalRevenue: 0, totalExpenses: 0,
-      totalCommissions: 0, netProfit: 0, serviceOrdersCount: 0,
-    };
-  }
+  if (!db) throw new Error("Database unavailable");
   
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
   
-  const revenueResult = await db.select({
+  // 1. Receita de Serviços (Status Pago ou Entregue)
+  const serviceRevenueResult = await db.select({
     total: sql<number>`SUM(${serviceOrders.totalCost})`,
     count: sql<number>`COUNT(${serviceOrders.id})`
   }).from(serviceOrders).where(
     and(
-      gte(serviceOrders.completedDate, startDate),
-      lte(serviceOrders.completedDate, endDate),
-      inArray(serviceOrders.status, ["entregue", "pago"] as any[])
+      gte(serviceOrders.updatedAt, startDate),
+      lte(serviceOrders.updatedAt, endDate),
+      inArray(serviceOrders.status, ["pago", "entregue"])
     )
   );
-  
-  const totalRevenue = Number(revenueResult[0]?.total || 0);
-  const serviceOrdersCount = Number(revenueResult[0]?.count || 0);
-  
-  const expensesResult = await db.select({
-    total: sql<number>`SUM(${transactions.amount})`
-  }).from(transactions).where(
+
+  // 2. Receita de Vendas
+  const salesRevenueResult = await db.select({
+    total: sql<number>`SUM(${sales.totalAmount})`,
+    count: sql<number>`COUNT(${sales.id})`
+  }).from(sales).where(
     and(
-      gte(transactions.transactionDate, startDate),
-      lte(transactions.transactionDate, endDate),
-      eq(transactions.type, "saida" as any)
+      gte(sales.saleDate, startDate),
+      lte(sales.saleDate, endDate)
+    )
+  );
+
+  // 3. Despesas (Compras que não estão pendentes/canceladas)
+  const purchaseExpensesResult = await db.select({
+    total: sql<number>`SUM(${purchaseOrders.totalAmount})`
+  }).from(purchaseOrders).where(
+    and(
+      gte(purchaseOrders.orderDate, startDate),
+      lte(purchaseOrders.orderDate, endDate),
+      inArray(purchaseOrders.status, ["aguardando_entrega", "recebido_parcial", "recebido"])
     )
   );
   
-  const totalExpenses = Number(expensesResult[0]?.total || 0);
-  
+  // 4. Comissões
   const commissionsResult = await db.select({
     total: sql<number>`SUM(${commissions.commissionAmount})`
   }).from(commissions).where(
@@ -59,12 +65,23 @@ export async function getMonthlyReport(year: number, month: number): Promise<Mon
     )
   );
   
+  const revenueServices = Number(serviceRevenueResult[0]?.total || 0);
+  const revenueSales = Number(salesRevenueResult[0]?.total || 0);
+  
+  const totalRevenue = revenueServices + revenueSales;
+  const totalExpenses = Number(purchaseExpensesResult[0]?.total || 0);
   const totalCommissions = Number(commissionsResult[0]?.total || 0);
   const netProfit = totalRevenue - totalExpenses - totalCommissions;
   
   return {
-    month, year, totalRevenue, totalExpenses,
-    totalCommissions, netProfit, serviceOrdersCount,
+    month,
+    year,
+    totalRevenue,
+    totalExpenses,
+    totalCommissions,
+    netProfit,
+    serviceOrdersCount: Number(serviceRevenueResult[0]?.count || 0),
+    salesCount: Number(salesRevenueResult[0]?.count || 0),
   };
 }
 
@@ -77,119 +94,103 @@ export async function getYearlyReport(year: number): Promise<MonthlyReport[]> {
   return reports;
 }
 
+// --- GRÁFICO 1: Receita por Categoria (Sem Transactions) ---
 export async function getRevenueByCategory(year: number, month: number) {
-  const db = await getDb();
-  if (!db) return [];
+    const db = await getDb();
+    if (!db) return [];
+    
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
 
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
+    // 1. Busca total de Serviços
+    const services = await db.select({ value: sql<number>`SUM(${serviceOrders.totalCost})` })
+      .from(serviceOrders)
+      .where(and(
+        gte(serviceOrders.updatedAt, startDate),
+        lte(serviceOrders.updatedAt, endDate),
+        inArray(serviceOrders.status, ["pago", "entregue"])
+      ));
 
-  const result = await db.select({
-    name: serviceOrders.serviceType,
-    value: sql<number>`SUM(${serviceOrders.totalCost})`
-  })
-  .from(serviceOrders)
-  .where(
-    and(
-      gte(serviceOrders.completedDate, startDate),
-      lte(serviceOrders.completedDate, endDate),
-      inArray(serviceOrders.status, ["entregue", "pago"] as any[])
-    )
-  )
-  .groupBy(serviceOrders.serviceType);
+    // 2. Busca total de Vendas
+    const productSales = await db.select({ value: sql<number>`SUM(${sales.totalAmount})` })
+      .from(sales)
+      .where(and(
+        gte(sales.saleDate, startDate),
+        lte(sales.saleDate, endDate)
+      ));
 
-  const formatCategoryName = (key: string | null): string => {
-    if (!key) return "Outros";
-    const map: Record<string, string> = {
-      "manutencao_industrial": "Manutenção Ind.",
-      "fitness_refrigeracao": "Fitness/Refrig.",
-      "automacao_industrial": "Automação Ind."
-    };
-    return map[key] || key;
-  };
-
-  return result.map(item => ({
-    name: formatCategoryName(item.name),
-    value: Number(item.value || 0)
-  }));
+    // Retorna array formatado para o gráfico
+    return [
+        { name: "Serviços", value: Number(services[0]?.value || 0) },
+        { name: "Vendas", value: Number(productSales[0]?.value || 0) }
+    ].filter(item => item.value > 0); // Opcional: esconder se for 0
 }
 
-// NOVA FUNÇÃO: Receita por Cliente (Top 5)
+// --- GRÁFICO 2: Receita por Cliente (Sem Transactions) ---
 export async function getRevenueByCustomer(year: number, month: number) {
   const db = await getDb();
   if (!db) return [];
-
+  
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
-  const result = await db.select({
-    name: customers.name,
-    value: sql<number>`SUM(${serviceOrders.totalCost})`
-  })
-  .from(serviceOrders)
-  .innerJoin(customers, eq(serviceOrders.customerId, customers.id))
-  .where(
-    and(
-      gte(serviceOrders.completedDate, startDate),
-      lte(serviceOrders.completedDate, endDate),
-      inArray(serviceOrders.status, ["entregue", "pago"] as any[])
-    )
-  )
-  .groupBy(customers.name)
-  .orderBy(desc(sql`SUM(${serviceOrders.totalCost})`))
-  .limit(5);
+  // Como Drizzle não facilita UNIONs complexos, faremos em 2 passos e uniremos no código:
+  
+  // 1. Clientes via Serviços
+  const serviceCustomers = await db
+    .select({
+      id: customers.id,
+      name: customers.name,
+      value: sql<number>`SUM(${serviceOrders.totalCost})`
+    })
+    .from(serviceOrders)
+    .innerJoin(customers, eq(serviceOrders.customerId, customers.id))
+    .where(and(
+      gte(serviceOrders.updatedAt, startDate),
+      lte(serviceOrders.updatedAt, endDate),
+      inArray(serviceOrders.status, ["pago", "entregue"])
+    ))
+    .groupBy(customers.id, customers.name);
 
-  return result.map(item => ({
-    name: item.name,
-    value: Number(item.value || 0)
-  }));
-}
+  // 2. Clientes via Vendas
+  const salesCustomers = await db
+    .select({
+      id: customers.id,
+      name: customers.name,
+      value: sql<number>`SUM(${sales.totalAmount})`
+    })
+    .from(sales)
+    .innerJoin(customers, eq(sales.customerId, customers.id))
+    .where(and(
+      gte(sales.saleDate, startDate),
+      lte(sales.saleDate, endDate)
+    ))
+    .groupBy(customers.id, customers.name);
 
-// ... TransactionSummary (pode manter como estava)
-export type TransactionSummary = {
-  totalIncome: number;
-  totalExpenses: number;
-  balance: number;
-  transactionCount: number;
-};
+  // 3. Unir e Somar
+  const customerMap = new Map<number, { name: string, value: number }>();
 
-export async function getTransactionSummary(
-  startDate: Date,
-  endDate: Date
-): Promise<TransactionSummary> {
-  const db = await getDb();
-  if (!db) {
-    return {
-      totalIncome: 0, totalExpenses: 0, balance: 0, transactionCount: 0,
-    };
+  // Adiciona serviços
+  for (const c of serviceCustomers) {
+    const val = Number(c.value);
+    if (val > 0) customerMap.set(c.id, { name: c.name, value: val });
   }
-  
-  const incomeResult = await db.select({
-    total: sql<number>`SUM(${transactions.amount})`,
-    count: sql<number>`COUNT(${transactions.id})`
-  }).from(transactions).where(
-    and(
-      gte(transactions.transactionDate, startDate),
-      lte(transactions.transactionDate, endDate),
-      eq(transactions.type, "entrada" as any)
-    )
-  );
-  
-  const expensesResult = await db.select({
-    total: sql<number>`SUM(${transactions.amount})`
-  }).from(transactions).where(
-    and(
-      gte(transactions.transactionDate, startDate),
-      lte(transactions.transactionDate, endDate),
-      eq(transactions.type, "saida" as any)
-    )
-  );
-  
-  const totalIncome = Number(incomeResult[0]?.total || 0);
-  const totalExpenses = Number(expensesResult[0]?.total || 0);
-  const transactionCount = Number(incomeResult[0]?.count || 0);
-  
-  return {
-    totalIncome, totalExpenses, balance: totalIncome - totalExpenses, transactionCount,
-  };
+
+  // Adiciona vendas (soma se já existir)
+  for (const c of salesCustomers) {
+    const val = Number(c.value);
+    if (val > 0) {
+      const existing = customerMap.get(c.id);
+      if (existing) {
+        existing.value += val;
+      } else {
+        customerMap.set(c.id, { name: c.name, value: val });
+      }
+    }
+  }
+
+  // 4. Converter para array, ordenar e pegar Top 5
+  return Array.from(customerMap.values())
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
 }

@@ -13,13 +13,12 @@ import * as customersDb from "./customers";
 import * as serviceOrdersDb from "./serviceOrders";
 import * as commissionsDb from "./commissions";
 import * as reportsDb from "./reports";
+import * as productsDb from "./products"; // NOVO
+import * as salesDb from "./sales";       // NOVO
 import { storagePut } from "./storage";
 
-// Helper para validar campos opcionais que podem vir como string vazia
 const optionalString = z.union([z.string(), z.literal(""), z.null(), z.undefined()]);
 const optionalEmail = z.union([z.string().email(), z.literal(""), z.null(), z.undefined()]);
-
-// Função para limpar strings vazias
 const cleanEmpty = (val: string | null | undefined) => (val === "" ? undefined : val);
 
 export const appRouter = router({
@@ -86,6 +85,63 @@ export const appRouter = router({
     }),
   }),
 
+  // --- PRODUTOS (Revenda) ---
+  products: router({
+    list: protectedProcedure.query(async () => productsDb.getAllProducts()),
+    getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => productsDb.getProductById(input.id)),
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        price: z.string(),
+        quantity: z.number().default(0),
+        minQuantity: z.number().optional(),
+        sku: z.string().optional()
+      }))
+      .mutation(async ({ input }) => {
+        const data = { ...input, sku: cleanEmpty(input.sku) };
+        return await productsDb.createProduct(data);
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        price: z.string().optional(),
+        quantity: z.number().optional(),
+        minQuantity: z.number().optional(),
+        sku: z.string().optional()
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return await productsDb.updateProduct(id, data);
+      }),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      await productsDb.deleteProduct(input.id);
+      return { success: true };
+    }),
+  }),
+
+  // --- VENDAS ---
+  sales: router({
+    list: protectedProcedure.query(async () => salesDb.getAllSales()),
+    getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => salesDb.getSaleById(input.id)),
+    create: protectedProcedure
+      .input(z.object({
+        customerId: z.number(),
+        totalAmount: z.number(),
+        paymentMethod: z.string().optional(),
+        notes: z.string().optional(),
+        items: z.array(z.object({
+          productId: z.number(),
+          quantity: z.number(),
+        }))
+      }))
+      .mutation(async ({ input }) => {
+        return await salesDb.createSaleTransaction(input);
+      }),
+  }),
+
   components: router({
     list: protectedProcedure.query(async () => componentsDb.getAllComponents()),
     getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => componentsDb.getComponentById(input.id)),
@@ -150,11 +206,14 @@ export const appRouter = router({
         orderDate: z.date(),
         notes: z.string().optional(),
         items: z.array(z.object({
-          componentId: z.number(),
+          componentId: z.number().optional(), // Agora opcional
+          productId: z.number().optional(),   // Novo opcional
           quantity: z.number(),
           unitPrice: z.string(),
           totalPrice: z.string(),
-        })),
+        })).refine((items) => items.every(item => item.componentId || item.productId), {
+          message: "Cada item deve ter um componente ou um produto vinculado."
+        }),
       }))
       .mutation(async ({ input }) => {
         const { items, ...orderData } = input;
@@ -173,19 +232,15 @@ export const appRouter = router({
         const { id, ...data } = input;
         return await purchaseOrdersDb.updatePurchaseOrder(id, data);
       }),
-    // ROTA: APROVAR (Pendente -> Aguardando Entrega + Despesa)
-    approve: protectedProcedure
+    approve: protectedProcedure // NOVO ENDPOINT DE APROVAÇÃO
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => purchaseOrdersDb.approvePurchaseOrder(input.id)),
-    
-    // ROTA: RECEBER TUDO (Aguardando Entrega -> Recebido + Estoque)
-    receiveAll: protectedProcedure
+    receiveAll: protectedProcedure // RECEBER TUDO
       .input(z.object({
         id: z.number(),
         receivedById: z.number()
       }))
       .mutation(async ({ input }) => purchaseOrdersDb.fullyReceivePurchaseOrder(input.id, input.receivedById)),
-      
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await purchaseOrdersDb.deletePurchaseOrder(input.id);
       return { success: true };
@@ -330,6 +385,7 @@ export const appRouter = router({
   reports: router({
     monthly: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getMonthlyReport(input.year, input.month)),
     yearly: protectedProcedure.input(z.object({ year: z.number() })).query(async ({ input }) => reportsDb.getYearlyReport(input.year)),
+    // Endpoints para gráficos
     byCategory: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getRevenueByCategory(input.year, input.month)),
     byCustomer: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getRevenueByCustomer(input.year, input.month)),
   }),

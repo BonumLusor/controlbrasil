@@ -1,9 +1,8 @@
 import { pgTable, serial, text, varchar, timestamp, decimal, boolean, pgEnum, integer } from "drizzle-orm/pg-core";
 
-// Enums para PostgreSQL
+// Enums
 export const roleEnum = pgEnum("role", ["user", "admin"]);
 export const componentTypeEnum = pgEnum("type", ["capacitor", "resistor", "indutor", "mosfet", "ci", "outros"]);
-// CORREÇÃO AQUI: Adicionado 'aguardando_entrega' na lista
 export const poStatusEnum = pgEnum("status", ["pendente", "aguardando_entrega", "recebido_parcial", "recebido", "cancelado"]);
 export const serviceTypeEnum = pgEnum("serviceType", ["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]);
 export const osStatusEnum = pgEnum("os_status", [
@@ -16,11 +15,9 @@ export const osStatusEnum = pgEnum("os_status", [
   "entregue",
   "entregue_a_receber"
 ]);
-export const transactionTypeEnum = pgEnum("transaction_type", ["entrada", "saida"]);
 
-/**
- * Tabela de Usuários
- */
+// --- TABELAS ---
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -34,12 +31,6 @@ export const users = pgTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-
-/**
- * Tabela de Funcionários
- */
 export const employees = pgTable("employees", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -52,12 +43,6 @@ export const employees = pgTable("employees", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
-export type Employee = typeof employees.$inferSelect;
-export type InsertEmployee = typeof employees.$inferInsert;
-
-/**
- * Tabela de Clientes
- */
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -73,12 +58,6 @@ export const customers = pgTable("customers", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
-export type Customer = typeof customers.$inferSelect;
-export type InsertCustomer = typeof customers.$inferInsert;
-
-/**
- * Tabela de Componentes
- */
 export const components = pgTable("components", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -95,12 +74,39 @@ export const components = pgTable("components", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
-export type Component = typeof components.$inferSelect;
-export type InsertComponent = typeof components.$inferInsert;
+export const products = pgTable("products", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }).default("0.00").notNull(),
+  quantity: integer("quantity").default(0).notNull(),
+  minQuantity: integer("minQuantity").default(0),
+  sku: varchar("sku", { length: 100 }).unique(),
+  imageUrl: text("imageUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
 
-/**
- * Tabela de Pedidos de Compra
- */
+export const sales = pgTable("sales", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customerId").references(() => customers.id),
+  totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }).notNull(),
+  status: varchar("status", { length: 50 }).default("concluido"),
+  paymentMethod: varchar("paymentMethod", { length: 50 }),
+  notes: text("notes"),
+  saleDate: timestamp("saleDate").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const saleItems = pgTable("saleItems", {
+  id: serial("id").primaryKey(),
+  saleId: integer("saleId").references(() => sales.id).notNull(),
+  productId: integer("productId").references(() => products.id).notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: decimal("unitPrice", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("totalPrice", { precision: 10, scale: 2 }).notNull(),
+});
+
 export const purchaseOrders = pgTable("purchaseOrders", {
   id: serial("id").primaryKey(),
   orderNumber: varchar("orderNumber", { length: 50 }).notNull().unique(),
@@ -115,16 +121,11 @@ export const purchaseOrders = pgTable("purchaseOrders", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
-export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
-export type InsertPurchaseOrder = typeof purchaseOrders.$inferInsert;
-
-/**
- * Itens dos Pedidos de Compra
- */
 export const purchaseOrderItems = pgTable("purchaseOrderItems", {
   id: serial("id").primaryKey(),
   purchaseOrderId: integer("purchaseOrderId").notNull(),
-  componentId: integer("componentId").notNull(),
+  componentId: integer("componentId"),
+  productId: integer("productId").references(() => products.id),
   quantity: integer("quantity").notNull(),
   receivedQuantity: integer("receivedQuantity").default(0).notNull(),
   unitPrice: decimal("unitPrice", { precision: 10, scale: 2 }).notNull(),
@@ -132,12 +133,6 @@ export const purchaseOrderItems = pgTable("purchaseOrderItems", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
-export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
-
-/**
- * Ordens de Serviço (OS)
- */
 export const serviceOrders = pgTable("serviceOrders", {
   id: serial("id").primaryKey(),
   orderNumber: varchar("orderNumber", { length: 50 }).notNull().unique(),
@@ -161,12 +156,6 @@ export const serviceOrders = pgTable("serviceOrders", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
-export type ServiceOrder = typeof serviceOrders.$inferSelect;
-export type InsertServiceOrder = typeof serviceOrders.$inferInsert;
-
-/**
- * Imagens das Ordens de Serviço
- */
 export const serviceOrderImages = pgTable("serviceOrderImages", {
   id: serial("id").primaryKey(),
   serviceOrderId: integer("serviceOrderId").notNull(),
@@ -175,32 +164,6 @@ export const serviceOrderImages = pgTable("serviceOrderImages", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-export type ServiceOrderImage = typeof serviceOrderImages.$inferSelect;
-export type InsertServiceOrderImage = typeof serviceOrderImages.$inferInsert;
-
-/**
- * Transações Financeiras
- */
-export const transactions = pgTable("transactions", {
-  id: serial("id").primaryKey(),
-  type: transactionTypeEnum("type").notNull(),
-  category: varchar("category", { length: 100 }).notNull(),
-  description: text("description"),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  transactionDate: timestamp("transactionDate").notNull(),
-  serviceOrderId: integer("serviceOrderId"),
-  purchaseOrderId: integer("purchaseOrderId"),
-  paymentMethod: varchar("paymentMethod", { length: 50 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-});
-
-export type Transaction = typeof transactions.$inferSelect;
-export type InsertTransaction = typeof transactions.$inferInsert;
-
-/**
- * Comissões de Funcionários
- */
 export const commissions = pgTable("commissions", {
   id: serial("id").primaryKey(),
   employeeId: integer("employeeId").notNull(),
@@ -212,6 +175,41 @@ export const commissions = pgTable("commissions", {
   paidDate: timestamp("paidDate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
+
+// --- TIPOS INFERIDOS ---
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+export type Employee = typeof employees.$inferSelect;
+export type InsertEmployee = typeof employees.$inferInsert;
+
+export type Customer = typeof customers.$inferSelect;
+export type InsertCustomer = typeof customers.$inferInsert;
+
+export type Component = typeof components.$inferSelect;
+export type InsertComponent = typeof components.$inferInsert;
+
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = typeof products.$inferInsert;
+
+export type Sale = typeof sales.$inferSelect;
+export type InsertSale = typeof sales.$inferInsert;
+
+export type SaleItem = typeof saleItems.$inferSelect;
+export type InsertSaleItem = typeof saleItems.$inferInsert;
+
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = typeof purchaseOrders.$inferInsert;
+
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
+
+export type ServiceOrder = typeof serviceOrders.$inferSelect;
+export type InsertServiceOrder = typeof serviceOrders.$inferInsert;
+
+export type ServiceOrderImage = typeof serviceOrderImages.$inferSelect;
+export type InsertServiceOrderImage = typeof serviceOrderImages.$inferInsert;
 
 export type Commission = typeof commissions.$inferSelect;
 export type InsertCommission = typeof commissions.$inferInsert;

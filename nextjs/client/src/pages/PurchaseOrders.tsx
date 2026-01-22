@@ -29,14 +29,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Edit, Plus, ShoppingCart, Trash2, Package, CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, Eye, Package, Plus, ShoppingBag, Trash2, Truck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+// ... (Tipos OrderItem e OrderFormData mantidos iguais) ...
 type OrderItem = {
-  componentId: number;
-  componentName?: string;
+  componentId?: number;
+  productId?: number;
+  name?: string;
   quantity: number;
   unitPrice: string;
   totalPrice: string;
@@ -61,120 +62,130 @@ const initialFormData: OrderFormData = {
 export default function PurchaseOrders() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState<OrderFormData>(initialFormData);
-  const [currentItem, setCurrentItem] = useState<OrderItem>({
-    componentId: 0,
+  
+  // Novo estado para Visualização de Detalhes
+  const [viewOrderId, setViewOrderId] = useState<number | null>(null);
+  
+  // Estados para controle da adição de itens
+  const [itemType, setItemType] = useState<"component" | "product">("component");
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [currentItem, setCurrentItem] = useState<{
+    quantity: number;
+    unitPrice: string;
+  }>({
     quantity: 1,
     unitPrice: "0.00",
-    totalPrice: "0.00",
   });
 
   const utils = trpc.useUtils();
   const { data: user } = trpc.auth.me.useQuery();
   const { data: orders, isLoading } = trpc.purchaseOrders.list.useQuery();
-  const { data: components } = trpc.components.list.useQuery();
+  
+  // Query para buscar itens do pedido selecionado (Visualização)
+  const { data: orderItems } = trpc.purchaseOrders.getItems.useQuery(
+    { purchaseOrderId: viewOrderId! }, 
+    { enabled: !!viewOrderId }
+  );
 
+  const { data: components } = trpc.components.list.useQuery();
+  const { data: products } = trpc.products.list.useQuery();
+
+  // ... (Mutações create, delete, approve, receive mantidas iguais) ...
   const createMutation = trpc.purchaseOrders.create.useMutation({
     onSuccess: () => {
       toast.success("Pedido de compra criado com sucesso!");
       utils.purchaseOrders.list.invalidate();
-      utils.components.list.invalidate();
       setIsDialogOpen(false);
       setFormData(initialFormData);
+      resetItemForm();
     },
-    onError: (error) => {
-      toast.error("Erro ao criar pedido: " + error.message);
-    },
-  });
-
-  // Mutation para Negar/Cancelar
-  const updateMutation = trpc.purchaseOrders.update.useMutation({
-    onSuccess: () => {
-      toast.success("Status atualizado!");
-      utils.purchaseOrders.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error("Erro: " + error.message);
-    },
-  });
-
-  // Mutation para Aprovar (Gera despesa e muda status para Aguardando Entrega)
-  const approveMutation = trpc.purchaseOrders.approve.useMutation({
-    onSuccess: () => {
-      toast.success("Pedido Aprovado!");
-      toast.info("Despesa registrada no financeiro.");
-      utils.purchaseOrders.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error("Erro ao aprovar: " + error.message);
-    },
-  });
-
-  // Mutation para Receber Tudo (Entra no estoque)
-  const receiveAllMutation = trpc.purchaseOrders.receiveAll.useMutation({
-    onSuccess: () => {
-      toast.success("Pedido Recebido!");
-      toast.info("Itens adicionados ao estoque.");
-      utils.purchaseOrders.list.invalidate();
-      utils.components.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error("Erro ao receber: " + error.message);
-    },
+    onError: (error) => toast.error("Erro ao criar pedido: " + error.message),
   });
 
   const deleteMutation = trpc.purchaseOrders.delete.useMutation({
     onSuccess: () => {
-      toast.success("Pedido excluído com sucesso!");
+      toast.success("Pedido excluído!");
       utils.purchaseOrders.list.invalidate();
     },
-    onError: (error) => {
-      toast.error("Erro ao excluir pedido: " + error.message);
-    },
+    onError: (error) => toast.error("Erro ao excluir: " + error.message),
   });
+
+  const approveMutation = trpc.purchaseOrders.approve.useMutation({
+    onSuccess: () => {
+      toast.success("Pedido aprovado! Aguardando entrega.");
+      utils.purchaseOrders.list.invalidate();
+    },
+    onError: (error) => toast.error("Erro ao aprovar: " + error.message),
+  });
+
+  const receiveMutation = trpc.purchaseOrders.receiveAll.useMutation({
+    onSuccess: () => {
+      toast.success("Itens recebidos e estoque atualizado!");
+      utils.purchaseOrders.list.invalidate();
+      utils.components.list.invalidate();
+      utils.products.list.invalidate();
+    },
+    onError: (error) => toast.error("Erro ao receber: " + error.message),
+  });
+
+  const resetItemForm = () => {
+    setSelectedId("");
+    setCurrentItem({ quantity: 1, unitPrice: "0.00" });
+    setItemType("component");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     if (formData.items.length === 0) {
       toast.error("Adicione pelo menos um item ao pedido");
       return;
     }
-
+    const itemsToSend = formData.items.map(({ name, ...item }) => item);
     createMutation.mutate({
       ...formData,
-      items: formData.items.map(({ componentName, ...item }) => item),
+      items: itemsToSend as any,
     });
   };
 
   const handleAddItem = () => {
-    if (currentItem.componentId === 0) {
-      toast.error("Selecione um componente");
+    if (!selectedId) {
+      toast.error("Selecione um item");
       return;
     }
 
-    const component = components?.find((c) => c.id === currentItem.componentId);
-    if (!component) return;
-
+    let newItem: OrderItem;
     const totalPrice = (parseFloat(currentItem.unitPrice) * currentItem.quantity).toFixed(2);
+    const id = parseInt(selectedId);
+
+    if (itemType === "component") {
+      const component = components?.find((c) => c.id === id);
+      if (!component) return;
+      newItem = {
+        componentId: id,
+        name: component.name,
+        quantity: currentItem.quantity,
+        unitPrice: currentItem.unitPrice,
+        totalPrice,
+      };
+    } else {
+      const product = products?.find((p) => p.id === id);
+      if (!product) return;
+      newItem = {
+        productId: id,
+        name: product.name,
+        quantity: currentItem.quantity,
+        unitPrice: currentItem.unitPrice,
+        totalPrice,
+      };
+    }
 
     setFormData({
       ...formData,
-      items: [
-        ...formData.items,
-        {
-          ...currentItem,
-          componentName: component.name,
-          totalPrice,
-        },
-      ],
+      items: [...formData.items, newItem],
     });
 
-    setCurrentItem({
-      componentId: 0,
-      quantity: 1,
-      unitPrice: "0.00",
-      totalPrice: "0.00",
-    });
+    setSelectedId("");
+    setCurrentItem({ quantity: 1, unitPrice: "0.00" });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -184,48 +195,47 @@ export default function PurchaseOrders() {
     });
   };
 
+  const handleApprove = (id: number) => {
+    approveMutation.mutate({ id });
+  };
+
+  const handleReceive = (id: number) => {
+    if (!user) {
+      toast.error("Você precisa estar logado para receber itens.");
+      return;
+    }
+    if (confirm("Confirmar recebimento de TODOS os itens? O estoque será atualizado.")) {
+      receiveMutation.mutate({ id, receivedById: user.id });
+    }
+  };
+
   const handleDelete = (id: number) => {
     if (confirm("Tem certeza que deseja excluir este pedido?")) {
       deleteMutation.mutate({ id });
     }
   };
 
-  const handleApprove = (id: number) => {
-    if (confirm("Aprovar pedido? Uma despesa será lançada no financeiro.")) {
-      approveMutation.mutate({ id });
-    }
-  };
-
-  const handleDeny = (id: number) => {
-    if (confirm("Negar pedido?")) {
-      updateMutation.mutate({ id, status: "cancelado" });
-    }
-  };
-
-  const handleReceive = (id: number) => {
-    if (!user) return;
-    if (confirm("Confirmar chegada? Os itens entrarão no estoque.")) {
-      receiveAllMutation.mutate({ id, receivedById: user.id });
-    }
-  };
-
   const handleNewOrder = () => {
     const nextOrderNumber = `PO${Date.now().toString().slice(-8)}`;
     setFormData({ ...initialFormData, orderNumber: nextOrderNumber });
+    resetItemForm();
     setIsDialogOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      pendente: { label: "Aguardando Aprovação", variant: "secondary" }, // Amarelo/Cinza
-      aguardando_entrega: { label: "Aguardando Entrega", variant: "default" }, // Azul/Padrão
+      pendente: { label: "Pendente", variant: "secondary" },
+      aguardando_entrega: { label: "Aguardando Entrega", variant: "outline" },
       recebido_parcial: { label: "Parcial", variant: "outline" },
-      recebido: { label: "Recebido", variant: "default" }, // Verde (pode ser ajustado com classe extra se quiser)
-      cancelado: { label: "Negado", variant: "destructive" }, // Vermelho
+      recebido: { label: "Recebido", variant: "default" },
+      cancelado: { label: "Cancelado", variant: "destructive" },
     };
 
     const statusInfo = statusMap[status] || statusMap.pendente;
-    return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
+    const className = status === 'recebido' ? 'bg-green-500 hover:bg-green-600' : 
+                      status === 'aguardando_entrega' ? 'border-blue-500 text-blue-500' : '';
+    
+    return <Badge variant={statusInfo.variant} className={className}>{statusInfo.label}</Badge>;
   };
 
   const totalOrderValue = formData.items.reduce(
@@ -239,7 +249,7 @@ export default function PurchaseOrders() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Pedidos de Compra</h1>
-            <p className="text-muted-foreground">Gerencie o fluxo de compras</p>
+            <p className="text-muted-foreground">Gerencie aquisições de estoque e revenda</p>
           </div>
           <Button onClick={handleNewOrder}>
             <Plus className="mr-2 h-4 w-4" />
@@ -283,85 +293,49 @@ export default function PurchaseOrders() {
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          
-                          {/* Botões para Pendente (Aguardando Aprovação) */}
-                          {order.status === "pendente" && (
-                            <>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                      onClick={() => handleApprove(order.id)}
-                                    >
-                                      <CheckCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Aprovar (Gera despesa)</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                          {/* BOTÃO DETALHES (OLHO) */}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setViewOrderId(order.id)}
+                            title="Ver Detalhes"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
 
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                      onClick={() => handleDeny(order.id)}
-                                    >
-                                      <XCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Negar Pedido</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </>
+                          {order.status === 'pendente' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              onClick={() => handleApprove(order.id)}
+                              title="Aprovar Pedido"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                            </Button>
                           )}
 
-                          {/* Botão para Aguardando Entrega */}
-                          {order.status === "aguardando_entrega" && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                    onClick={() => handleReceive(order.id)}
-                                  >
-                                    <Package className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Confirmar Chegada (Entra no estoque)</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                          {order.status === 'aguardando_entrega' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="text-green-600 border-green-200 hover:bg-green-50"
+                              onClick={() => handleReceive(order.id)}
+                              title="Receber Itens"
+                            >
+                              <Truck className="h-4 w-4 mr-1" />
+                            </Button>
                           )}
 
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDelete(order.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Excluir Registro</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(order.id)}
+                            className="text-destructive hover:text-destructive"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -376,13 +350,61 @@ export default function PurchaseOrders() {
           </CardContent>
         </Card>
 
-        {/* Dialog (Modal) - Mantido igual */}
+        {/* --- DIALOG DE VISUALIZAÇÃO DE DETALHES --- */}
+        <Dialog open={!!viewOrderId} onOpenChange={(open) => !open && setViewOrderId(null)}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Detalhes do Pedido #{orders?.find(o => o.id === viewOrderId)?.orderNumber}</DialogTitle>
+              <DialogDescription>
+                {orders?.find(o => o.id === viewOrderId)?.supplier} - {orders?.find(o => o.id === viewOrderId)?.status}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Qtd</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orderItems?.map((item, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px]">
+                          {item.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell className="text-right">R$ {parseFloat(item.totalPrice).toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {!orderItems?.length && (
+                    <TableRow><TableCell colSpan={4} className="text-center">Carregando itens...</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              <div className="flex justify-between mt-4 font-bold border-t pt-2">
+                <span>Total:</span>
+                <span>R$ {orderItems?.reduce((acc, i) => acc + parseFloat(i.totalPrice), 0).toFixed(2)}</span>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewOrderId(null)}>Fechar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* DIALOG DE NOVO PEDIDO (MANTIDO) */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Novo Pedido de Compra</DialogTitle>
               <DialogDescription>
-                Preencha os dados do pedido e adicione os componentes
+                Preencha os dados e adicione componentes ou produtos
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
@@ -438,28 +460,65 @@ export default function PurchaseOrders() {
                 <div className="border-t pt-4">
                   <h3 className="font-semibold mb-4">Itens do Pedido</h3>
                   
-                  <div className="grid grid-cols-12 gap-2 mb-4">
-                    <div className="col-span-5">
-                      <Label>Componente</Label>
+                  {/* Seleção do Tipo */}
+                  <div className="flex gap-6 mb-4">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="type-component"
+                        name="itemType"
+                        checked={itemType === "component"}
+                        onChange={() => { setItemType("component"); setSelectedId(""); }}
+                        className="accent-primary h-4 w-4"
+                      />
+                      <Label htmlFor="type-component" className="flex items-center gap-2 cursor-pointer">
+                        <Package className="h-4 w-4" /> Componente (Peça)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="type-product"
+                        name="itemType"
+                        checked={itemType === "product"}
+                        onChange={() => { setItemType("product"); setSelectedId(""); }}
+                        className="accent-primary h-4 w-4"
+                      />
+                      <Label htmlFor="type-product" className="flex items-center gap-2 cursor-pointer">
+                        <ShoppingBag className="h-4 w-4" /> Produto (Revenda)
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-2 mb-4 items-end">
+                    <div className="col-span-5 space-y-2">
+                      <Label>
+                        {itemType === "component" ? "Componente" : "Produto"}
+                      </Label>
                       <Select
-                        value={currentItem.componentId.toString()}
-                        onValueChange={(value) =>
-                          setCurrentItem({ ...currentItem, componentId: parseInt(value) })
-                        }
+                        value={selectedId}
+                        onValueChange={setSelectedId}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {components?.map((c) => (
-                            <SelectItem key={c.id} value={c.id.toString()}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
+                          {itemType === "component" 
+                            ? components?.map((c) => (
+                                <SelectItem key={c.id} value={c.id.toString()}>
+                                  {c.name} {c.partNumber ? `(${c.partNumber})` : ""}
+                                </SelectItem>
+                              ))
+                            : products?.map((p) => (
+                                <SelectItem key={p.id} value={p.id.toString()}>
+                                  {p.name} {p.sku ? `(SKU: ${p.sku})` : ""}
+                                </SelectItem>
+                              ))
+                          }
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
+                    <div className="col-span-2 space-y-2">
                       <Label>Qtd</Label>
                       <Input
                         type="number"
@@ -473,7 +532,7 @@ export default function PurchaseOrders() {
                         }
                       />
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-3 space-y-2">
                       <Label>Preço Unit.</Label>
                       <Input
                         type="number"
@@ -484,7 +543,7 @@ export default function PurchaseOrders() {
                         }
                       />
                     </div>
-                    <div className="col-span-2 flex items-end">
+                    <div className="col-span-2">
                       <Button type="button" onClick={handleAddItem} className="w-full">
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -499,8 +558,15 @@ export default function PurchaseOrders() {
                           className="flex items-center justify-between p-2 bg-muted rounded"
                         >
                           <div className="flex-1">
-                            <span className="font-medium">{item.componentName}</span>
-                            <span className="text-sm text-muted-foreground ml-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{item.name}</span>
+                              {item.productId ? (
+                                <Badge variant="secondary" className="text-[10px] h-5">Produto</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] h-5">Componente</Badge>
+                              )}
+                            </div>
+                            <span className="text-sm text-muted-foreground">
                               {item.quantity}x R$ {parseFloat(item.unitPrice).toFixed(2)}
                             </span>
                           </div>
@@ -534,6 +600,7 @@ export default function PurchaseOrders() {
                   onClick={() => {
                     setIsDialogOpen(false);
                     setFormData(initialFormData);
+                    resetItemForm();
                   }}
                 >
                   Cancelar

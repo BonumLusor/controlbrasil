@@ -30,6 +30,7 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Wrench, label: "Ordens de Serviço", path: "/service-orders" },
+  { icon: DollarSign, label: "Vendas", path: "/sales" },
   { icon: Package, label: "Estoque", path: "/inventory" },
   { icon: ShoppingCart, label: "Pedidos de Compra", path: "/purchase-orders" },
   { icon: Users, label: "Clientes", path: "/customers" },
