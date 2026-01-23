@@ -1,16 +1,11 @@
-import DashboardLayout from "@/components/DashboardLayout";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { trpc } from "../lib/trpc";
+// CORREÇÃO 1: Import default
+import DashboardLayout from "../components/DashboardLayout"; 
+import { Button } from "../components/ui/button";
 import {
   Table,
   TableBody,
@@ -18,97 +13,112 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import { trpc } from "@/lib/trpc";
-import { Edit, Plus, Search, Trash2, Users } from "lucide-react";
-import { useState } from "react";
+} from "../components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../components/ui/form";
+import { Plus, Pencil, Trash2, Search, Building2, User } from "lucide-react";
 import { toast } from "sonner";
 
-type CustomerFormData = {
-  id?: number;
-  name: string;
-  email: string;
-  phone: string;
-  cpfCnpj: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  notes: string;
-};
-
-const initialFormData: CustomerFormData = {
-  name: "",
-  email: "",
-  phone: "",
-  cpfCnpj: "",
-  address: "",
-  city: "",
-  state: "",
-  zipCode: "",
-  notes: "",
-};
+const formSchema = z.object({
+  company: z.string().optional(),
+  manager: z.string().min(2, "Nome do responsável é obrigatório"),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional(),
+  cpfCnpj: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+});
 
 export default function Customers() {
+  const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
-  const [isEditing, setIsEditing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
   const { data: customers, isLoading } = trpc.customers.list.useQuery();
 
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      company: "",
+      manager: "",
+      email: "",
+      phone: "",
+      cpfCnpj: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+    },
+  });
+
   const createMutation = trpc.customers.create.useMutation({
     onSuccess: () => {
-      toast.success("Cliente cadastrado com sucesso!");
+      toast.success("Cliente criado com sucesso!");
       utils.customers.list.invalidate();
       setIsDialogOpen(false);
-      setFormData(initialFormData);
+      form.reset();
     },
-    onError: (error) => {
-      toast.error("Erro ao cadastrar cliente: " + error.message);
-    },
+    onError: (err) => toast.error(err.message),
   });
 
   const updateMutation = trpc.customers.update.useMutation({
     onSuccess: () => {
-      toast.success("Cliente atualizado com sucesso!");
+      toast.success("Cliente atualizado!");
       utils.customers.list.invalidate();
       setIsDialogOpen(false);
-      setFormData(initialFormData);
-      setIsEditing(false);
+      setEditingId(null);
+      form.reset();
     },
-    onError: (error) => {
-      toast.error("Erro ao atualizar cliente: " + error.message);
-    },
+    onError: (err) => toast.error(err.message),
   });
 
   const deleteMutation = trpc.customers.delete.useMutation({
     onSuccess: () => {
-      toast.success("Cliente excluído com sucesso!");
+      toast.success("Cliente removido.");
       utils.customers.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error("Erro ao excluir cliente: " + error.message);
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // CORREÇÃO 2: Limpeza de dados antes de enviar para evitar erro de tipo
+  const cleanData = (values: z.infer<typeof formSchema>) => {
+    return {
+      ...values,
+      email: values.email || undefined,
+      phone: values.phone || undefined,
+      cpfCnpj: values.cpfCnpj || undefined,
+      company: values.company || undefined,
+      address: values.address || undefined,
+      city: values.city || undefined,
+      state: values.state || undefined,
+      zipCode: values.zipCode || undefined,
+    };
+  };
 
-    if (isEditing && formData.id) {
-      updateMutation.mutate({ ...formData, id: formData.id });
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    const cleaned = cleanData(values);
+    
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, ...cleaned });
     } else {
-      const { id, ...data } = formData;
-      createMutation.mutate(data);
+      createMutation.mutate(cleaned);
     }
   };
 
   const handleEdit = (customer: any) => {
-    setFormData({
-      id: customer.id,
-      name: customer.name || "",
+    setEditingId(customer.id);
+    form.reset({
+      company: customer.company || "",
+      manager: customer.manager,
       email: customer.email || "",
       phone: customer.phone || "",
       cpfCnpj: customer.cpfCnpj || "",
@@ -116,9 +126,7 @@ export default function Customers() {
       city: customer.city || "",
       state: customer.state || "",
       zipCode: customer.zipCode || "",
-      notes: customer.notes || "",
     });
-    setIsEditing(true);
     setIsDialogOpen(true);
   };
 
@@ -128,234 +136,188 @@ export default function Customers() {
     }
   };
 
-  const handleNewCustomer = () => {
-    setFormData(initialFormData);
-    setIsEditing(false);
-    setIsDialogOpen(true);
-  };
-
   const filteredCustomers = customers?.filter((c) =>
-    searchQuery
-      ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.cpfCnpj?.toLowerCase().includes(searchQuery.toLowerCase())
-      : true
+    (c.company?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+    c.manager.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Clientes</h1>
-            <p className="text-muted-foreground">Gerencie os clientes da empresa</p>
-          </div>
-          <Button onClick={handleNewCustomer}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Cliente
-          </Button>
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingId(null);
+              form.reset();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Cliente
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="company"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Empresa (Opcional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nome da Empresa" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="manager"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Responsável (Obrigatório)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nome do Responsável" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="email@exemplo.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Telefone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="(00) 00000-0000" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                   <FormField
+                      control={form.control}
+                      name="cpfCnpj"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>CPF / CNPJ</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Documento" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                  <FormField control={form.control} name="address" render={({ field }) => (<FormItem><FormLabel>Endereço</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="state" render={({ field }) => (<FormItem><FormLabel>UF</FormLabel><FormControl><Input maxLength={2} {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="zipCode" render={({ field }) => (<FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                    <Button type="submit">{editingId ? "Salvar" : "Criar"}</Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Lista de Clientes</CardTitle>
-                <CardDescription>
-                  {filteredCustomers?.length || 0} cliente(s) encontrado(s)
-                </CardDescription>
-              </div>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar clientes..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8">Carregando...</div>
-            ) : filteredCustomers && filteredCustomers.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>CPF/CNPJ</TableHead>
-                    <TableHead>Cidade</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCustomers.map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell>{customer.email || "-"}</TableCell>
-                      <TableCell>{customer.phone || "-"}</TableCell>
-                      <TableCell>{customer.cpfCnpj || "-"}</TableCell>
-                      <TableCell>{customer.city || "-"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(customer)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(customer.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+        <div className="flex items-center space-x-2">
+          <Search className="w-4 h-4 text-gray-500" />
+          <Input
+            placeholder="Buscar por empresa ou responsável..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Empresa / Responsável</TableHead>
+                <TableHead>Contato</TableHead>
+                <TableHead>Cidade/UF</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={4} className="text-center">Carregando...</TableCell></TableRow>
+              ) : filteredCustomers?.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="text-center">Nenhum cliente encontrado.</TableCell></TableRow>
+              ) : (
+                filteredCustomers?.map((customer) => (
+                  <TableRow key={customer.id}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        {customer.company && (
+                          <div className="flex items-center font-medium text-gray-900">
+                            <Building2 className="w-3 h-3 mr-1 text-gray-500" />
+                            {customer.company}
+                          </div>
+                        )}
+                        <div className={`flex items-center ${customer.company ? "text-sm text-gray-500" : "font-medium text-gray-900"}`}>
+                          <User className="w-3 h-3 mr-1 text-gray-400" />
+                          {customer.manager}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {searchQuery ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {isEditing ? "Editar Cliente" : "Novo Cliente"}
-              </DialogTitle>
-              <DialogDescription>
-                {isEditing
-                  ? "Atualize as informações do cliente"
-                  : "Preencha os dados do novo cliente"}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="cpfCnpj">CPF/CNPJ</Label>
-                  <Input
-                    id="cpfCnpj"
-                    value={formData.cpfCnpj}
-                    onChange={(e) => setFormData({ ...formData, cpfCnpj: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address">Endereço</Label>
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">Cidade</Label>
-                    <Input
-                      id="city"
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state">Estado</Label>
-                    <Input
-                      id="state"
-                      value={formData.state}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      maxLength={2}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="zipCode">CEP</Label>
-                    <Input
-                      id="zipCode"
-                      value={formData.zipCode}
-                      onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Observações</Label>
-                  <Textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsDialogOpen(false);
-                    setFormData(initialFormData);
-                    setIsEditing(false);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                >
-                  {createMutation.isPending || updateMutation.isPending
-                    ? "Salvando..."
-                    : isEditing
-                    ? "Atualizar"
-                    : "Cadastrar"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">{customer.email}</div>
+                      <div className="text-sm text-gray-500">{customer.phone}</div>
+                    </TableCell>
+                    <TableCell>
+                      {customer.city && customer.state ? `${customer.city}/${customer.state}` : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)} className="text-red-500 hover:text-red-700">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </DashboardLayout>
   );

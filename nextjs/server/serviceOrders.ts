@@ -5,6 +5,7 @@ import {
   serviceOrderImages,
   components,            // Importado
   serviceOrderComponents, // Importado
+  commissions,
   type ServiceOrder,
   type InsertServiceOrder,
 } from "../drizzle/schema";
@@ -236,8 +237,32 @@ export async function deleteServiceOrder(id: number): Promise<void> {
   if (!db) throw new Error("Database not available");
   
   await db.transaction(async (tx: any) => {
-    // REMOVIDO: Delete transactions
+    // 1. (OPCIONAL) Restaurar o estoque dos componentes antes de excluir?
+    // Se você quiser que o estoque volte ao normal ao deletar a OS, descomente abaixo:
+    /*
+    const itemsToRestore = await tx.select()
+      .from(serviceOrderComponents)
+      .where(eq(serviceOrderComponents.serviceOrderId, id));
+      
+    for (const item of itemsToRestore) {
+      await tx.update(components)
+        .set({ quantity: sql`${components.quantity} + ${item.quantity}` })
+        .where(eq(components.id, item.componentId));
+    }
+    */
+
+    // 2. Excluir os componentes vinculados à OS (CORREÇÃO DO ERRO)
+    // Isso é obrigatório porque existe uma chave estrangeira
+    await tx.delete(serviceOrderComponents).where(eq(serviceOrderComponents.serviceOrderId, id));
+
+    // 3. Excluir comissões vinculadas (Boa prática para não deixar lixo)
+    // No seu schema, commissions não tem chave estrangeira forçada, mas é bom limpar
+    await tx.delete(commissions).where(eq(commissions.serviceOrderId, id));
+
+    // 4. Excluir as imagens
     await tx.delete(serviceOrderImages).where(eq(serviceOrderImages.serviceOrderId, id));
+
+    // 5. Finalmente, excluir a Ordem de Serviço
     await tx.delete(serviceOrders).where(eq(serviceOrders.id, id));
   });
 }

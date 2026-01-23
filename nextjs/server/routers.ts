@@ -16,6 +16,7 @@ import * as reportsDb from "./reports";
 import * as productsDb from "./products";
 import * as salesDb from "./sales";
 import { storagePut } from "./storage";
+import { getAllSales, getSaleById, createSaleTransaction, cancelSale } from "./sales";
 
 const optionalString = z.union([z.string(), z.literal(""), z.null(), z.undefined()]);
 const optionalEmail = z.union([z.string().email(), z.literal(""), z.null(), z.undefined()]);
@@ -140,8 +141,24 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return await salesDb.createSaleTransaction(input);
       }),
-  }),
+    
+    // Rota para mudar status (Cancelar, Devolver, Reaprovar)
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["concluido", "cancelado", "devolvido"])
+      }))
+      .mutation(async ({ input }) => {
+        return await salesDb.updateSaleStatus(input.id, input.status);
+      }),
 
+    // Rota para Excluir Definitivamente
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return await salesDb.deleteSale(input.id);
+      }),
+  }),
   components: router({
     list: protectedProcedure.query(async () => componentsDb.getAllComponents()),
     getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => componentsDb.getComponentById(input.id)),
@@ -253,7 +270,8 @@ export const appRouter = router({
     search: protectedProcedure.input(z.object({ query: z.string() })).query(async ({ input }) => customersDb.searchCustomers(input.query)),
     create: protectedProcedure
       .input(z.object({
-        name: z.string().min(2),
+        company: z.string().optional(),     // Novo
+        manager: z.string().min(2),         // Novo (Obrigatório)
         email: optionalEmail,
         phone: z.string().optional(),
         cpfCnpj: optionalString,
@@ -275,7 +293,8 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
-        name: z.string().min(2).optional(),
+        company: z.string().optional(),
+        manager: z.string().min(2).optional(),
         email: optionalEmail,
         phone: z.string().optional(),
         cpfCnpj: optionalString,

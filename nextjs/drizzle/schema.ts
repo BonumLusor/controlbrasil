@@ -44,7 +44,13 @@ export const employees = pgTable("employees", {
 
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
+  
+  // REMOVIDO: name: varchar("name", { length: 255 }).notNull(),
+  
+  // NOVOS CAMPOS:
+  company: varchar("company", { length: 255 }), // Empresa (Opcional)
+  manager: varchar("manager", { length: 255 }).notNull(), // Responsável (Obrigatório)
+  
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 50 }),
   cpfCnpj: varchar("cpfCnpj", { length: 20 }).unique(),
@@ -86,11 +92,16 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
+export const saleStatusEnum = pgEnum("sale_status_enum", ["concluido", "cancelado", "devolvido"]);
+
 export const sales = pgTable("sales", {
   id: serial("id").primaryKey(),
   customerId: integer("customerId").references(() => customers.id),
   totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }).notNull(),
-  status: varchar("status", { length: 50 }).default("concluido"),
+  
+  // ATUALIZE ESTA COLUNA para usar o Enum
+  status: saleStatusEnum("status").default("concluido"),
+  
   paymentMethod: varchar("paymentMethod", { length: 50 }),
   notes: text("notes"),
   saleDate: timestamp("saleDate").defaultNow().notNull(),

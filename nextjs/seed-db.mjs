@@ -27,13 +27,13 @@ async function runSeed() {
 
   try {
     // A senha precisa ser hashada EXATAMENTE como o server/auth.ts espera
-    const hashedPassword = await bcrypt.hash("admin123", 10);
+    const hashedPassword = await bcrypt.hash("controlbrasil", 10);
     
     // CORREÇÃO: No PostgreSQL, colunas CamelCase exigem aspas duplas
     // Garantindo que o admin-user tenha o email correto para a busca
     await db.execute(`
       INSERT INTO users ("openId", name, email, role, "loginMethod", "passwordHash", "updatedAt")
-      VALUES ('admin-user', 'Administrador', 'admin@sistema.com', 'admin', 'password', '${hashedPassword}', NOW())
+      VALUES ('admin-user', 'Administrador', 'controlbrasil.sac@gmail.com', 'admin', 'password', '${hashedPassword}', NOW())
       ON CONFLICT ("openId") DO UPDATE SET 
         "passwordHash" = EXCLUDED."passwordHash",
         "email" = EXCLUDED."email",

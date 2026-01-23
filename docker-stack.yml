@@ -19,7 +19,6 @@ services:
       - "traefik.tcp.services.controlbrasilPostgres-svc.loadbalancer.server.port=5432"
       - "traefik.docker.network=proxy"
     networks:
-      - internal
       - proxy
     deploy:
       restart_policy:
@@ -39,13 +38,12 @@ services:
       - "traefik.http.services.control-brasil.loadbalancer.server.port=3000"
       - "traefik.docker.network=proxy"
     environment:
-      NODE_ENV: production  # <--- MUDANÇA 1: Define ambiente como produção
+      NODE_ENV: development  # <--- MUDANÇA 1: Define ambiente como produção
       DATABASE_URL: postgresql://user_admin:password_secure@db:5432/service_db
       # ... (restante das variáveis mantém igual)
       HOST: 0.0.0.0
       PORT: 3000
     networks:
-      - internal
       - proxy
     # MUDANÇA 2: Usa 'bun run dev' que ativa o 'watch' nos arquivos
     command: >
@@ -60,6 +58,8 @@ services:
 
 volumes:
   postgres_data:
+    external: true
+    name: control_brasila_postgres_data
 
 networks:
   internal:

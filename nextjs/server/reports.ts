@@ -40,11 +40,12 @@ export async function getMonthlyReport(year: number, month: number): Promise<Mon
   }).from(sales).where(
     and(
       gte(sales.saleDate, startDate),
-      lte(sales.saleDate, endDate)
+      lte(sales.saleDate, endDate),
+      eq(sales.status, "concluido")
     )
   );
 
-  // 3. Despesas (Compras que não estão pendentes/canceladas)
+  // 3. Despesas
   const purchaseExpensesResult = await db.select({
     total: sql<number>`SUM(${purchaseOrders.totalAmount})`
   }).from(purchaseOrders).where(
@@ -102,7 +103,6 @@ export async function getRevenueByCategory(year: number, month: number) {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
-    // 1. Busca total de Serviços
     const services = await db.select({ value: sql<number>`SUM(${serviceOrders.totalCost})` })
       .from(serviceOrders)
       .where(and(
@@ -111,22 +111,21 @@ export async function getRevenueByCategory(year: number, month: number) {
         inArray(serviceOrders.status, ["pago", "entregue"])
       ));
 
-    // 2. Busca total de Vendas
     const productSales = await db.select({ value: sql<number>`SUM(${sales.totalAmount})` })
       .from(sales)
       .where(and(
         gte(sales.saleDate, startDate),
-        lte(sales.saleDate, endDate)
+        lte(sales.saleDate, endDate),
+        eq(sales.status, "concluido")
       ));
 
-    // Retorna array formatado para o gráfico
     return [
         { name: "Serviços", value: Number(services[0]?.value || 0) },
         { name: "Vendas", value: Number(productSales[0]?.value || 0) }
-    ].filter(item => item.value > 0); // Opcional: esconder se for 0
+    ].filter(item => item.value > 0);
 }
 
-// --- GRÁFICO 2: Receita por Cliente (Sem Transactions) ---
+// CORREÇÃO PRINCIPAL AQUI EMBAIXO:
 export async function getRevenueByCustomer(year: number, month: number) {
   const db = await getDb();
   if (!db) return [];
@@ -134,13 +133,20 @@ export async function getRevenueByCustomer(year: number, month: number) {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
-  // Como Drizzle não facilita UNIONs complexos, faremos em 2 passos e uniremos no código:
-  
+  // Helper para nome do cliente
+  const customerNameSql = sql<string>`
+    CASE 
+      WHEN ${customers.company} IS NOT NULL AND ${customers.company} <> '' 
+      THEN ${customers.company} 
+      ELSE ${customers.manager} 
+    END
+  `;
+
   // 1. Clientes via Serviços
   const serviceCustomers = await db
     .select({
       id: customers.id,
-      name: customers.name,
+      name: customerNameSql, // Usa a lógica nova
       value: sql<number>`SUM(${serviceOrders.totalCost})`
     })
     .from(serviceOrders)
@@ -150,33 +156,32 @@ export async function getRevenueByCustomer(year: number, month: number) {
       lte(serviceOrders.updatedAt, endDate),
       inArray(serviceOrders.status, ["pago", "entregue"])
     ))
-    .groupBy(customers.id, customers.name);
+    .groupBy(customers.id, customers.company, customers.manager); // Agrupa pelos campos novos
 
   // 2. Clientes via Vendas
   const salesCustomers = await db
     .select({
       id: customers.id,
-      name: customers.name,
+      name: customerNameSql, // Usa a lógica nova
       value: sql<number>`SUM(${sales.totalAmount})`
     })
     .from(sales)
     .innerJoin(customers, eq(sales.customerId, customers.id))
     .where(and(
       gte(sales.saleDate, startDate),
-      lte(sales.saleDate, endDate)
+      lte(sales.saleDate, endDate),
+      eq(sales.status, "concluido")
     ))
-    .groupBy(customers.id, customers.name);
+    .groupBy(customers.id, customers.company, customers.manager); // Agrupa pelos campos novos
 
-  // 3. Unir e Somar
+  // 3. Unir e Somar (Lógica mantida)
   const customerMap = new Map<number, { name: string, value: number }>();
 
-  // Adiciona serviços
   for (const c of serviceCustomers) {
     const val = Number(c.value);
     if (val > 0) customerMap.set(c.id, { name: c.name, value: val });
   }
 
-  // Adiciona vendas (soma se já existir)
   for (const c of salesCustomers) {
     const val = Number(c.value);
     if (val > 0) {
@@ -189,7 +194,6 @@ export async function getRevenueByCustomer(year: number, month: number) {
     }
   }
 
-  // 4. Converter para array, ordenar e pegar Top 5
   return Array.from(customerMap.values())
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);

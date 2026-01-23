@@ -1,69 +1,85 @@
-import { eq, desc, like, or } from "drizzle-orm";
+import { eq, desc, sql, ilike, or } from "drizzle-orm";
 import { getDb } from "./db";
-import { customers, type Customer, type InsertCustomer } from "../drizzle/schema";
+import { customers } from "../drizzle/schema";
 
-export async function getAllCustomers(): Promise<Customer[]> {
+export async function getAllCustomers() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(customers).orderBy(desc(customers.createdAt));
+  return await db
+    .select({
+      id: customers.id,
+      company: customers.company,
+      manager: customers.manager,
+      email: customers.email,
+      phone: customers.phone,
+      cpfCnpj: customers.cpfCnpj,
+      // CAMPOS ADICIONADOS AQUI:
+      address: customers.address,
+      city: customers.city,
+      state: customers.state,
+      zipCode: customers.zipCode,
+      // -----------------------
+      name: sql<string>`
+        CASE 
+          WHEN ${customers.company} IS NOT NULL AND ${customers.company} <> '' 
+          THEN ${customers.company} || ' - ' || ${customers.manager} 
+          ELSE ${customers.manager} 
+        END`.as('name'),
+      createdAt: customers.createdAt
+    })
+    .from(customers)
+    .orderBy(desc(customers.createdAt));
 }
 
-export async function getCustomerById(id: number): Promise<Customer | undefined> {
+export async function getCustomerById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   
-  const result = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
+  const result = await db
+    .select() // Pega todos os campos raw (company, manager)
+    .from(customers)
+    .where(eq(customers.id, id));
+    
   return result[0];
 }
 
-export async function searchCustomers(query: string): Promise<Customer[]> {
+export async function createCustomer(data: any) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) throw new Error("Database unavailable");
   
-  return await db.select().from(customers).where(
-    or(
-      like(customers.name, `%${query}%`),
-      like(customers.email, `%${query}%`),
-      like(customers.phone, `%${query}%`),
-      like(customers.cpfCnpj, `%${query}%`)
-    )
-  ).orderBy(desc(customers.createdAt));
+  return await db.insert(customers).values(data).returning();
 }
 
-export async function createCustomer(data: InsertCustomer): Promise<Customer> {
+export async function updateCustomer(id: number, data: any) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) throw new Error("Database unavailable");
   
-  // Adicionado .returning() para obter o ID gerado pelo Postgres
-  const result = await db.insert(customers).values(data).returning({ id: customers.id });
-  
-  // Pega o ID do primeiro resultado retornado
-  const insertedId = result[0]?.id;
-  
-  if (!insertedId) throw new Error("Failed to insert customer");
-
-  const customer = await getCustomerById(insertedId);
-  if (!customer) throw new Error("Failed to create customer");
-  
-  return customer;
+  return await db.update(customers).set({ ...data, updatedAt: new Date() }).where(eq(customers.id, id)).returning();
 }
 
-export async function updateCustomer(id: number, data: Partial<InsertCustomer>): Promise<Customer> {
+export async function deleteCustomer(id: number) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  
-  await db.update(customers).set(data).where(eq(customers.id, id));
-  
-  const customer = await getCustomerById(id);
-  if (!customer) throw new Error("Customer not found");
-  
-  return customer;
-}
-
-export async function deleteCustomer(id: number): Promise<void> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  if (!db) throw new Error("Database unavailable");
   
   await db.delete(customers).where(eq(customers.id, id));
+}
+
+export async function searchCustomers(query: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+       id: customers.id,
+       name: sql<string>`CASE WHEN ${customers.company} IS NOT NULL THEN ${customers.company} || ' - ' || ${customers.manager} ELSE ${customers.manager} END`.as('name'),
+       phone: customers.phone
+    })
+    .from(customers)
+    .where(or(
+      ilike(customers.company, `%${query}%`),
+      ilike(customers.manager, `%${query}%`),
+      ilike(customers.email, `%${query}%`)
+    ))
+    .limit(10);
 }
