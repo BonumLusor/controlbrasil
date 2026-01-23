@@ -13,8 +13,8 @@ import * as customersDb from "./customers";
 import * as serviceOrdersDb from "./serviceOrders";
 import * as commissionsDb from "./commissions";
 import * as reportsDb from "./reports";
-import * as productsDb from "./products"; // NOVO
-import * as salesDb from "./sales";       // NOVO
+import * as productsDb from "./products";
+import * as salesDb from "./sales";
 import { storagePut } from "./storage";
 
 const optionalString = z.union([z.string(), z.literal(""), z.null(), z.undefined()]);
@@ -206,8 +206,8 @@ export const appRouter = router({
         orderDate: z.date(),
         notes: z.string().optional(),
         items: z.array(z.object({
-          componentId: z.number().optional(), // Agora opcional
-          productId: z.number().optional(),   // Novo opcional
+          componentId: z.number().optional(),
+          productId: z.number().optional(),
           quantity: z.number(),
           unitPrice: z.string(),
           totalPrice: z.string(),
@@ -232,10 +232,10 @@ export const appRouter = router({
         const { id, ...data } = input;
         return await purchaseOrdersDb.updatePurchaseOrder(id, data);
       }),
-    approve: protectedProcedure // NOVO ENDPOINT DE APROVAÇÃO
+    approve: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => purchaseOrdersDb.approvePurchaseOrder(input.id)),
-    receiveAll: protectedProcedure // RECEBER TUDO
+    receiveAll: protectedProcedure
       .input(z.object({
         id: z.number(),
         receivedById: z.number()
@@ -324,11 +324,17 @@ export const appRouter = router({
         orderNumber: z.string().min(1),
         customerId: z.number(),
         serviceType: z.enum(["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]),
+        // --- NOVOS CAMPOS DO EQUIPAMENTO ---
+        equipment: z.string().optional(),
+        brand: z.string().optional(),
+        model: z.string().optional(),
+        serialNumber: z.string().optional(),
+        // ------------------------------------
         equipmentDescription: z.string().optional(),
         reportedIssue: z.string().optional(),
         diagnosis: z.string().optional(),
         solution: z.string().optional(),
-        status: z.enum(["aberto", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).default("aberto"),
+        status: z.enum(["aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).default("aguardando_aprovacao"),
         receivedById: z.number().optional(),
         technicianId: z.number().optional(),
         laborCost: z.string().optional(),
@@ -337,10 +343,17 @@ export const appRouter = router({
         receivedDate: z.date(),
         notes: z.string().optional(),
         images: z.array(z.string()).optional(),
+        // --- NOVO CAMPO DE COMPONENTES USADOS ---
+        usedComponents: z.array(z.object({
+          componentId: z.number(),
+          quantity: z.number()
+        })).optional()
+        // ----------------------------------------
       }))
       .mutation(async ({ input }) => {
-        const { images, ...data } = input;
-        return serviceOrdersDb.createServiceOrder(data, images);
+        const { images, usedComponents, ...data } = input;
+        // Passa usedComponents para a função do DB
+        return serviceOrdersDb.createServiceOrder(data, images, usedComponents);
       }),
     update: protectedProcedure
       .input(z.object({
@@ -348,11 +361,17 @@ export const appRouter = router({
         orderNumber: z.string().optional(),
         customerId: z.number().optional(),
         serviceType: z.enum(["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]).optional(),
+        // --- NOVOS CAMPOS DO EQUIPAMENTO ---
+        equipment: z.string().optional(),
+        brand: z.string().optional(),
+        model: z.string().optional(),
+        serialNumber: z.string().optional(),
+        // ------------------------------------
         equipmentDescription: z.string().optional(),
         reportedIssue: z.string().optional(),
         diagnosis: z.string().optional(),
         solution: z.string().optional(),
-        status: z.enum(["aberto", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).optional(),
+        status: z.enum(["aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).optional(),
         receivedById: z.number().optional(),
         technicianId: z.number().optional(),
         laborCost: z.string().optional(),
@@ -362,10 +381,17 @@ export const appRouter = router({
         deliveredDate: z.date().optional(),
         notes: z.string().optional(),
         images: z.array(z.string()).optional(),
+        // --- NOVO CAMPO DE COMPONENTES USADOS ---
+        usedComponents: z.array(z.object({
+          componentId: z.number(),
+          quantity: z.number()
+        })).optional()
+        // ----------------------------------------
       }))
       .mutation(async ({ input }) => {
-        const { id, images, ...data } = input;
-        return await serviceOrdersDb.updateServiceOrder(id, data, images);
+        const { id, images, usedComponents, ...data } = input;
+        // Passa usedComponents para a função do DB
+        return await serviceOrdersDb.updateServiceOrder(id, data, images, usedComponents);
       }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await serviceOrdersDb.deleteServiceOrder(input.id);
@@ -385,7 +411,6 @@ export const appRouter = router({
   reports: router({
     monthly: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getMonthlyReport(input.year, input.month)),
     yearly: protectedProcedure.input(z.object({ year: z.number() })).query(async ({ input }) => reportsDb.getYearlyReport(input.year)),
-    // Endpoints para gráficos
     byCategory: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getRevenueByCategory(input.year, input.month)),
     byCustomer: protectedProcedure.input(z.object({ year: z.number(), month: z.number() })).query(async ({ input }) => reportsDb.getRevenueByCustomer(input.year, input.month)),
   }),

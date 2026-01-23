@@ -35,7 +35,7 @@ export default function Dashboard() {
   });
 
   const openOrders = serviceOrders?.filter(o => 
-    ["aberto", "aguardando_componente", "em_reparo", "aprovado"].includes(o.status)
+    ["aguardando_aprovacao", "aguardando_componente", "em_reparo", "aprovado"].includes(o.status)
   ).length || 0;
 
   const completedOrders = serviceOrders?.filter(o => {

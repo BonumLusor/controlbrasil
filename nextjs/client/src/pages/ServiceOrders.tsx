@@ -29,24 +29,29 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Edit, Plus, Trash2, Upload, X, Loader2 } from "lucide-react";
+import { Edit, Plus, Trash2, Upload, X, Loader2, FileText } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { PDFDownloadLink } from '@react-pdf/renderer';
-import { ServiceOrderPDF } from '@/components/reports/ServiceOrderPDF'; // Ajuste o caminho conforme onde criou o arquivo
-import { FileText } from 'lucide-react'; // Ícone para o botão
+import { ServiceOrderPDF } from '@/components/reports/ServiceOrderPDF';
 
 type ServiceOrderFormData = {
   id?: number;
   orderNumber: string;
   customerId: number;
   serviceType: "manutencao_industrial" | "fitness_refrigeracao" | "automacao_industrial";
+  // --- NOVOS CAMPOS ---
+  equipment: string;
+  brand: string;
+  model: string;
+  serialNumber: string;
+  // --------------------
   equipmentDescription: string;
   reportedIssue: string;
   diagnosis: string;
   solution: string;
-  status: "aberto" | "aguardando_componente" | "aprovado" | "em_reparo" | "sem_conserto" | "pago" | "entregue" | "entregue_a_receber";
+  status: "aguardando_aprovacao" | "aguardando_componente" | "aprovado" | "em_reparo" | "sem_conserto" | "pago" | "entregue" | "entregue_a_receber";
   receivedById: number;
   technicianId: number;
   laborCost: string;
@@ -54,18 +59,24 @@ type ServiceOrderFormData = {
   totalCost: string;
   receivedDate: Date;
   notes: string;
-  images: string[]; // Campo de imagens adicionado
+  images: string[];
+  // --- COMPONENTES ---
+  usedComponents: { componentId: number; quantity: number }[];
 };
 
 const initialFormData: ServiceOrderFormData = {
   orderNumber: "",
   customerId: 0,
   serviceType: "manutencao_industrial",
+  equipment: "",
+  brand: "",
+  model: "",
+  serialNumber: "",
   equipmentDescription: "",
   reportedIssue: "",
   diagnosis: "",
   solution: "",
-  status: "aberto",
+  status: "aguardando_aprovacao",
   receivedById: 0,
   technicianId: 0,
   laborCost: "0.00",
@@ -73,7 +84,8 @@ const initialFormData: ServiceOrderFormData = {
   totalCost: "0.00",
   receivedDate: new Date(),
   notes: "",
-  images: [], // Inicializa array de imagens
+  images: [],
+  usedComponents: [],
 };
 
 const serviceTypes = [
@@ -83,10 +95,10 @@ const serviceTypes = [
 ];
 
 const statusOptions = [
-  { value: "aberto", label: "Aberto" },
+  { value: "aguardando_aprovacao", label: "Aguardando Aprovação" },
   { value: "aguardando_componente", label: "Aguardando Componente" },
   { value: "aprovado", label: "Aprovado" },
-  { value: "em_reparo", label: "Em Reparo" },
+  { value: "em_reparo", label: "Em Reparo" },  
   { value: "sem_conserto", label: "Sem Conserto" },
   { value: "pago", label: "Pago" },
   { value: "entregue", label: "Entregue" },
@@ -98,10 +110,15 @@ export default function ServiceOrders() {
   const [formData, setFormData] = useState<ServiceOrderFormData>(initialFormData);
   const [isEditing, setIsEditing] = useState(false);
 
+  // Estados locais para seleção de componente na modal
+  const [selectedComponentId, setSelectedComponentId] = useState<string>("");
+  const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
+
   const utils = trpc.useUtils();
   const { data: orders, isLoading } = trpc.serviceOrders.list.useQuery();
   const { data: customers } = trpc.customers.list.useQuery();
   const { data: employees } = trpc.employees.listActive.useQuery();
+  const { data: componentsList } = trpc.components.list.useQuery();
 
   // Queries e Mutations auxiliares
   const { refetch: fetchNextNumber, isFetching: isLoadingNumber } = trpc.serviceOrders.getNextNumber.useQuery(undefined, {
@@ -145,6 +162,39 @@ export default function ServiceOrders() {
       toast.error("Erro ao excluir ordem: " + error.message);
     },
   });
+
+  // --- Lógica de Componentes ---
+  const handleAddComponent = () => {
+    if (!selectedComponentId || selectedQuantity <= 0) return;
+    const compId = parseInt(selectedComponentId);
+    
+    setFormData(prev => {
+      const exists = prev.usedComponents.find(c => c.componentId === compId);
+      if (exists) {
+        return {
+          ...prev,
+          usedComponents: prev.usedComponents.map(c => 
+            c.componentId === compId ? { ...c, quantity: c.quantity + selectedQuantity } : c
+          )
+        };
+      }
+      return {
+        ...prev,
+        usedComponents: [...prev.usedComponents, { componentId: compId, quantity: selectedQuantity }]
+      };
+    });
+    
+    setSelectedComponentId("");
+    setSelectedQuantity(1);
+  };
+
+  const handleRemoveComponent = (compId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      usedComponents: prev.usedComponents.filter(c => c.componentId !== compId)
+    }));
+  };
+  // -----------------------------
 
   // Manipulação de Imagens
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,11 +252,9 @@ export default function ServiceOrders() {
   };
 
   const handleEdit = async (order: any) => {
-    // Carregar dados iniciais básicos
     setIsEditing(true);
     setIsDialogOpen(true);
 
-    // Busca os dados completos (incluindo imagens) do servidor
     try {
       const fullOrder = await utils.serviceOrders.getById.fetch({ id: order.id });
 
@@ -216,11 +264,18 @@ export default function ServiceOrders() {
           orderNumber: fullOrder.orderNumber || "",
           customerId: fullOrder.customerId || 0,
           serviceType: (fullOrder.serviceType as any) || "manutencao_industrial",
+          
+          // Novos Campos
+          equipment: fullOrder.equipment || "",
+          brand: fullOrder.brand || "",
+          model: fullOrder.model || "",
+          serialNumber: fullOrder.serialNumber || "",
+
           equipmentDescription: fullOrder.equipmentDescription || "",
           reportedIssue: fullOrder.reportedIssue || "",
           diagnosis: fullOrder.diagnosis || "",
           solution: fullOrder.solution || "",
-          status: (fullOrder.status as any) || "aberto",
+          status: (fullOrder.status as any) || "aguardando_aprovacao",
           receivedById: fullOrder.receivedById || 0,
           technicianId: fullOrder.technicianId || 0,
           laborCost: fullOrder.laborCost || "0.00",
@@ -228,7 +283,13 @@ export default function ServiceOrders() {
           totalCost: fullOrder.totalCost || "0.00",
           receivedDate: fullOrder.receivedDate ? new Date(fullOrder.receivedDate) : new Date(),
           notes: fullOrder.notes || "",
-          images: fullOrder.images || [] // Aqui carregamos as imagens
+          images: fullOrder.images || [],
+          
+          // Componentes
+          usedComponents: fullOrder.components ? fullOrder.components.map((c: any) => ({
+             componentId: c.componentId,
+             quantity: c.quantity
+          })) : []
         });
       }
     } catch (err) {
@@ -244,7 +305,6 @@ export default function ServiceOrders() {
 
   const handleNewOrder = async () => {
     try {
-      // Busca o próximo número do backend
       const { data: nextNumber } = await fetchNextNumber();
       const orderNumber = nextNumber ? `OS${nextNumber}` : "OS600";
 
@@ -262,7 +322,7 @@ export default function ServiceOrders() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      aberto: { variant: "secondary" },
+      aguardando_aprovacao: { variant: "secondary" },
       aguardando_componente: { variant: "outline" },
       aprovado: { variant: "default" },
       em_reparo: { variant: "default" },
@@ -272,7 +332,7 @@ export default function ServiceOrders() {
       entregue_a_receber: { variant: "outline" },
     };
 
-    const statusInfo = statusMap[status] || statusMap.aberto;
+    const statusInfo = statusMap[status] || statusMap.aguardando_aprovacao;
     const label = statusOptions.find((s) => s.value === status)?.label || status;
     return <Badge variant={statusInfo.variant}>{label}</Badge>;
   };
@@ -340,8 +400,6 @@ export default function ServiceOrders() {
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-
-                          {/* INÍCIO DO BOTÃO DE PDF */}
                           <PDFDownloadLink
                             document={
                               <ServiceOrderPDF
@@ -368,7 +426,6 @@ export default function ServiceOrders() {
                               </Button>
                             )}
                           </PDFDownloadLink>
-                          {/* FIM DO BOTÃO DE PDF */}
 
                           <Button
                             variant="outline"
@@ -392,7 +449,7 @@ export default function ServiceOrders() {
               </Table>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhuma ordem cadastrada
+                Nenhuma ordem cadastrada (Verifique se o banco de dados foi atualizado com 'db push')
               </div>
             )}
           </CardContent>
@@ -444,6 +501,47 @@ export default function ServiceOrders() {
                   </div>
                 </div>
 
+                {/* --- SEÇÃO DE EQUIPAMENTO (ESTILO UNIFICADO) --- */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="equipment">Equipamento</Label>
+                    <Input
+                      id="equipment"
+                      placeholder="Ex: Inversor de Frequência"
+                      value={formData.equipment}
+                      onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="brand">Marca</Label>
+                    <Input
+                      id="brand"
+                      value={formData.brand}
+                      onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                    <Label htmlFor="model">Modelo</Label>
+                    <Input
+                      id="model"
+                      value={formData.model}
+                      onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="serialNumber">Nº de Série</Label>
+                    <Input
+                      id="serialNumber"
+                      value={formData.serialNumber}
+                      onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                    />
+                  </div>
+                </div>
+                {/* ------------------------------------------------ */}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="serviceType">Tipo de Serviço *</Label>
@@ -486,7 +584,7 @@ export default function ServiceOrders() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="equipmentDescription">Descrição do Equipamento</Label>
+                  <Label htmlFor="equipmentDescription">Descrição do Equipamento (Detalhes)</Label>
                   <Textarea
                     id="equipmentDescription"
                     value={formData.equipmentDescription}
@@ -509,7 +607,75 @@ export default function ServiceOrders() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                {/* --- SEÇÃO DE COMPONENTES --- */}
+                <div className="border rounded-md p-3 bg-slate-50 dark:bg-slate-900/50 mt-2">
+                  <Label className="text-base font-semibold mb-2 block">Peças Utilizadas (Baixa Estoque)</Label>
+                  
+                  <div className="flex gap-2 items-end mb-4">
+                    <div className="flex-1 space-y-2">
+                      <Label>Componente</Label>
+                      <Select value={selectedComponentId} onValueChange={setSelectedComponentId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um componente..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {componentsList?.map((comp: any) => (
+                            <SelectItem key={comp.id} value={comp.id.toString()}>
+                              {comp.name} (Disp: {comp.quantity})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-24 space-y-2">
+                      <Label>Qtd</Label>
+                      <Input 
+                        type="number" 
+                        min="1" 
+                        value={selectedQuantity}
+                        onChange={(e) => setSelectedQuantity(parseInt(e.target.value))}
+                      />
+                    </div>
+                    <Button type="button" onClick={handleAddComponent} variant="secondary">Adicionar</Button>
+                  </div>
+
+                  {formData.usedComponents.length > 0 && (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Componente</TableHead>
+                          <TableHead className="w-20">Qtd</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {formData.usedComponents.map((item, idx) => {
+                          const compName = componentsList?.find((c: any) => c.id === item.componentId)?.name || "Item " + item.componentId;
+                          return (
+                            <TableRow key={idx}>
+                              <TableCell className="py-2">{compName}</TableCell>
+                              <TableCell className="py-2">{item.quantity}</TableCell>
+                              <TableCell className="py-2">
+                                <Button 
+                                  type="button" 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0 text-red-500"
+                                  onClick={() => handleRemoveComponent(item.componentId)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+                {/* --------------------------- */}
+
+                <div className="space-y-2 mt-2">
                   <Label>Imagens e Documentos</Label>
                   <div className="flex flex-wrap gap-4 p-4 border rounded-md bg-slate-50 dark:bg-slate-900">
                     {formData.images.map((url, idx) => (

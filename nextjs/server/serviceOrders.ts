@@ -3,7 +3,8 @@ import { getDb } from "./db";
 import {
   serviceOrders,
   serviceOrderImages,
-  // transactions, <- REMOVIDO
+  components,            // Importado
+  serviceOrderComponents, // Importado
   type ServiceOrder,
   type InsertServiceOrder,
 } from "../drizzle/schema";
@@ -39,21 +40,58 @@ export async function getAllServiceOrders(): Promise<(ServiceOrder & { images: s
   return await attachImagesToOrders(orders);
 }
 
-export async function getServiceOrderById(id: number): Promise<(ServiceOrder & { images: string[] }) | undefined> {
+export async function getServiceOrderById(id: number): Promise<(ServiceOrder & { images: string[], components: any[] }) | undefined> {
   const db = await getDb();
   if (!db) return undefined;
+  
   const order = await db.select().from(serviceOrders).where(eq(serviceOrders.id, id)).limit(1);
   if (!order[0]) return undefined;
+  
   const images = await db.select().from(serviceOrderImages).where(eq(serviceOrderImages.serviceOrderId, id));
-  return { ...order[0], images: images.map(img => img.imageUrl) };
+  
+  // Buscar componentes vinculados e seus nomes
+  const usedComponents = await db
+    .select({
+      componentId: serviceOrderComponents.componentId,
+      quantity: serviceOrderComponents.quantity,
+      name: components.name,
+      unitPrice: components.unitPrice
+    })
+    .from(serviceOrderComponents)
+    .leftJoin(components, eq(serviceOrderComponents.componentId, components.id))
+    .where(eq(serviceOrderComponents.serviceOrderId, id));
+
+  return { 
+    ...order[0], 
+    images: images.map(img => img.imageUrl),
+    components: usedComponents
+  };
 }
 
-export async function getNextOrderNumber(): Promise<string> {
+export async function getNextOrderNumber() {
   const db = await getDb();
-  if (!db) return "600";
-  const [lastOrder] = await db.select().from(serviceOrders).orderBy(desc(serviceOrders.id)).limit(1);
-  const lastId = lastOrder ? lastOrder.id : 599; 
-  return `OS${new Date().getFullYear()}${(lastId + 1).toString().padStart(4, '0')}`;
+  if (!db) return 601; // Fallback se não houver DB
+
+  // Busca todos os números de OS
+  const orders = await db
+    .select({ orderNumber: serviceOrders.orderNumber })
+    .from(serviceOrders);
+
+  let maxNumber = 600; // Número base inicial (se não houver nada, a próxima será 601)
+
+  for (const order of orders) {
+    // Remove "OS" (maiúsculo ou minúsculo) e pega o número
+    const numStr = order.orderNumber.replace(/^OS/i, '');
+    const num = parseInt(numStr, 10);
+
+    // Se for um número válido e maior que o atual máximo, atualiza
+    // Também ignoramos números muito grandes que pareçam datas (ex: 20260002) para corrigir o erro
+    if (!isNaN(num) && num > maxNumber && num < 1000000) {
+      maxNumber = num;
+    }
+  }
+
+  return maxNumber + 1; // Retorna apenas o número (ex: 601)
 }
 
 export async function getServiceOrdersByStatus(status: string): Promise<ServiceOrder[]> {
@@ -82,14 +120,22 @@ export async function getServiceOrdersByDateRange(startDate: Date, endDate: Date
   ).orderBy(desc(serviceOrders.receivedDate));
 }
 
-export async function createServiceOrder(data: InsertServiceOrder, imageUrls: string[] = []): Promise<ServiceOrder> {
+type UsedComponent = { componentId: number; quantity: number };
+
+export async function createServiceOrder(
+  data: InsertServiceOrder, 
+  imageUrls: string[] = [],
+  usedComponents: UsedComponent[] = [] // Novo parâmetro
+): Promise<ServiceOrder> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
   return await db.transaction(async (tx: any) => {
+    // Inserir a OS
     const result = await tx.insert(serviceOrders).values(data).returning({ id: serviceOrders.id });
     const insertedId = result[0]?.id;
     
+    // Inserir imagens
     if (imageUrls && imageUrls.length > 0) {
       await tx.insert(serviceOrderImages).values(
         imageUrls.map(url => ({
@@ -99,16 +145,39 @@ export async function createServiceOrder(data: InsertServiceOrder, imageUrls: st
         }))
       );
     }
-    // REMOVIDO: Insert transactions
+
+    // Processar componentes e baixar estoque
+    if (usedComponents && usedComponents.length > 0) {
+      for (const item of usedComponents) {
+        // Registra o uso
+        await tx.insert(serviceOrderComponents).values({
+          serviceOrderId: insertedId,
+          componentId: item.componentId,
+          quantity: item.quantity
+        });
+        
+        // Remove do estoque (components.quantity - item.quantity)
+        await tx.update(components)
+          .set({ quantity: sql`${components.quantity} - ${item.quantity}` })
+          .where(eq(components.id, item.componentId));
+      }
+    }
+
     const [order] = await tx.select().from(serviceOrders).where(eq(serviceOrders.id, insertedId));
     return order;
   });
 }
 
-export async function updateServiceOrder(id: number, data: Partial<InsertServiceOrder>, imageUrls?: string[]): Promise<ServiceOrder> {
+export async function updateServiceOrder(
+  id: number, 
+  data: Partial<InsertServiceOrder>, 
+  imageUrls?: string[],
+  usedComponents?: UsedComponent[] // Novo parâmetro
+): Promise<ServiceOrder> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // ... (lógica existente de datas status/entregue)
   if (data.status && ["entregue", "pago"].includes(data.status)) {
     if (!data.completedDate) data.completedDate = new Date();
   }
@@ -117,8 +186,10 @@ export async function updateServiceOrder(id: number, data: Partial<InsertService
   }
   
   return await db.transaction(async (tx: any) => {
+    // Atualiza dados básicos
     await tx.update(serviceOrders).set({ ...data, updatedAt: new Date() }).where(eq(serviceOrders.id, id));
 
+    // Atualiza imagens se fornecidas
     if (imageUrls !== undefined) {
       await tx.delete(serviceOrderImages).where(eq(serviceOrderImages.serviceOrderId, id));
       if (imageUrls.length > 0) {
@@ -127,7 +198,34 @@ export async function updateServiceOrder(id: number, data: Partial<InsertService
         );
       }
     }
-    // REMOVIDO: Update transactions logic
+
+    // Atualiza componentes e estoque
+    if (usedComponents !== undefined) {
+      // 1. Reverter o estoque dos componentes que já estavam na OS
+      const currentItems = await tx.select().from(serviceOrderComponents).where(eq(serviceOrderComponents.serviceOrderId, id));
+      for (const item of currentItems) {
+        await tx.update(components)
+          .set({ quantity: sql`${components.quantity} + ${item.quantity}` }) // Devolve ao estoque
+          .where(eq(components.id, item.componentId));
+      }
+
+      // 2. Limpar vínculos antigos
+      await tx.delete(serviceOrderComponents).where(eq(serviceOrderComponents.serviceOrderId, id));
+
+      // 3. Aplicar novos componentes e baixar estoque novamente
+      for (const item of usedComponents) {
+        await tx.insert(serviceOrderComponents).values({
+          serviceOrderId: id,
+          componentId: item.componentId,
+          quantity: item.quantity
+        });
+
+        await tx.update(components)
+          .set({ quantity: sql`${components.quantity} - ${item.quantity}` }) // Baixa do estoque
+          .where(eq(components.id, item.componentId));
+      }
+    }
+
     const [updatedOrder] = await tx.select().from(serviceOrders).where(eq(serviceOrders.id, id));
     return updatedOrder;
   });

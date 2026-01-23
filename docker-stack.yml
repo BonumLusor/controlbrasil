@@ -9,8 +9,18 @@ services:
       POSTGRES_DB: service_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.controlbrasilPostgres.rule=HostSNI(`dbcontrolbrasil.techgf.com.br`)"
+      - "traefik.tcp.routers.controlbrasilPostgres.entrypoints=websecure"
+      - "traefik.tcp.routers.controlbrasilPostgres.service=controlbrasilPostgres-svc"
+      - "traefik.tcp.routers.controlbrasilPostgres.tls=true"
+      - "traefik.tcp.routers.controlbrasilPostgres.tls.certresolver=myresolver"
+      - "traefik.tcp.services.controlbrasilPostgres-svc.loadbalancer.server.port=5432"
+      - "traefik.docker.network=proxy"
     networks:
       - internal
+      - proxy
     deploy:
       restart_policy:
         condition: any
@@ -29,7 +39,7 @@ services:
       - "traefik.http.services.control-brasil.loadbalancer.server.port=3000"
       - "traefik.docker.network=proxy"
     environment:
-      NODE_ENV: development  # <--- MUDANÇA 1: Define ambiente como desenvolvimento
+      NODE_ENV: production  # <--- MUDANÇA 1: Define ambiente como produção
       DATABASE_URL: postgresql://user_admin:password_secure@db:5432/service_db
       # ... (restante das variáveis mantém igual)
       HOST: 0.0.0.0
