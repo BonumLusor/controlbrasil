@@ -4,9 +4,31 @@ import { pgTable, serial, text, varchar, timestamp, decimal, boolean, pgEnum, in
 export const roleEnum = pgEnum("role", ["user", "admin"]);
 export const componentTypeEnum = pgEnum("type", ["capacitor", "resistor", "indutor", "mosfet", "ci", "outros"]);
 export const poStatusEnum = pgEnum("status", ["pendente", "aguardando_entrega", "recebido_parcial", "recebido", "cancelado"]);
-export const serviceTypeEnum = pgEnum("serviceType", ["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]);
+// No arquivo schema.ts
+export const serviceTypeEnum = pgEnum("serviceType", [
+  "manutencao_industrial", 
+  "fitness",             // Alterado (separado)
+  "refrigeracao",        // Alterado (separado)
+  "automacao_industrial"
+]);
+
+export const os_status = pgEnum("os_status", [
+  "em_aberto",            // Adicionado
+  "aguardando_orcamento",  // Adicionado
+  "aguardando_aprovacao",
+  "aguardando_componente",
+  "aprovado",
+  "em_reparo",
+  "sem_conserto",
+  "pago",
+  "entregue",
+  "entregue_a_receber"
+]);
+
 export const osStatusEnum = pgEnum("os_status", [
-  "aguardando_aprovacao", // Substitui 'aguardando_aprovacao'
+  "em_aberto",            // Adicionado
+  "aguardando_orcamento",  // Adicionado
+  "aguardando_aprovacao",
   "aguardando_componente",
   "aprovado",
   "em_reparo",
@@ -159,7 +181,6 @@ export const serviceOrders = pgTable("serviceOrders", {
   reportedIssue: text("reportedIssue"),
   diagnosis: text("diagnosis"),
   solution: text("solution"),
-  // ... (restante dos campos existentes: status, receivedById, etc.)
   status: osStatusEnum("status").default("aguardando_aprovacao").notNull(),
   receivedById: integer("receivedById"),
   technicianId: integer("technicianId"),

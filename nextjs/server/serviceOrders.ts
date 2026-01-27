@@ -78,7 +78,7 @@ export async function getNextOrderNumber() {
     .select({ orderNumber: serviceOrders.orderNumber })
     .from(serviceOrders);
 
-  let maxNumber = 600; // Número base inicial (se não houver nada, a próxima será 601)
+  let maxNumber = 1000; // Número base inicial (se não houver nada, a próxima será 601)
 
   for (const order of orders) {
     // Remove "OS" (maiúsculo ou minúsculo) e pega o número

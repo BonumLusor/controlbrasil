@@ -243,7 +243,7 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
       <View style={styles.table}>
         <View style={styles.tableRow}>
           <View style={[styles.tableColHeader, { width: '20%' }]}><Text style={styles.tableCellHeader}>Equipamento</Text></View>
-          <View style={[styles.tableColHeader, { width: '40%' }]}><Text style={styles.tableCellHeader}>Parecer Técnico (Diagnóstico)</Text></View>
+          <View style={[styles.tableColHeader, { width: '40%' }]}><Text style={styles.tableCellHeader}>Descrição do Serviço</Text></View>
           <View style={[styles.tableColHeader, { width: '40%' }]}><Text style={styles.tableCellHeader}>Defeitos Apresentados</Text></View>
         </View>
         <View style={styles.tableRow}>

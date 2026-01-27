@@ -36,12 +36,12 @@ import { toast } from "sonner";
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { ServiceOrderPDF } from '@/components/reports/ServiceOrderPDF';
 
-// ... (Tipos e interfaces mantidos)
+// Tipos atualizados para corresponder às opções (ServiceTypes e StatusOptions)
 type ServiceOrderFormData = {
   id?: number;
   orderNumber: string;
   customerId: number;
-  serviceType: "manutencao_industrial" | "fitness_refrigeracao" | "automacao_industrial";
+  serviceType: "manutencao_industrial" | "fitness" | "refrigeracao" | "automacao_industrial";
   equipment: string;
   brand: string;
   model: string;
@@ -50,7 +50,7 @@ type ServiceOrderFormData = {
   reportedIssue: string;
   diagnosis: string;
   solution: string;
-  status: "aguardando_aprovacao" | "aguardando_componente" | "aprovado" | "em_reparo" | "sem_conserto" | "pago" | "entregue" | "entregue_a_receber";
+  status: "em_aberto" | "aguardando_orcamento" | "aguardando_aprovacao" | "aguardando_componente" | "aprovado" | "em_reparo" | "sem_conserto" | "pago" | "entregue" | "entregue_a_receber";
   receivedById: number;
   technicianId: number;
   laborCost: string;
@@ -74,7 +74,7 @@ const initialFormData: ServiceOrderFormData = {
   reportedIssue: "",
   diagnosis: "",
   solution: "",
-  status: "aguardando_aprovacao",
+  status: "em_aberto",
   receivedById: 0,
   technicianId: 0,
   laborCost: "0.00",
@@ -88,11 +88,14 @@ const initialFormData: ServiceOrderFormData = {
 
 const serviceTypes = [
   { value: "manutencao_industrial", label: "Manutenção Industrial" },
-  { value: "fitness_refrigeracao", label: "Fitness/Refrigeração" },
+  { value: "fitness", label: "Fitness" },
+  { value: "refrigeracao", label: "Refrigeração" },
   { value: "automacao_industrial", label: "Automação Industrial" },
 ];
 
 const statusOptions = [
+  { value: "em_aberto", label: "Em Aberto" },
+  { value: "aguardando_orcamento", label: "Aguardando Orçamento" },
   { value: "aguardando_aprovacao", label: "Aguardando Aprovação" },
   { value: "aguardando_componente", label: "Aguardando Componente" },
   { value: "aprovado", label: "Aprovado" },
@@ -239,9 +242,12 @@ export default function ServiceOrders() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const totalCost = (
-      parseFloat(formData.laborCost) + parseFloat(formData.partsCost)
-    ).toFixed(2);
+    const labor = parseFloat(formData.laborCost) || 0;
+    const parts = parseFloat(formData.partsCost) || 0;
+    const taxValue = labor * 0.06; // Imposto de 6% sobre mão de obra
+    
+    // Total = Mão de Obra + Peças + Imposto
+    const totalCost = (labor + parts + taxValue).toFixed(2);
 
     if (isEditing && formData.id) {
       updateMutation.mutate({ ...formData, totalCost, id: formData.id });
@@ -272,7 +278,7 @@ export default function ServiceOrders() {
           reportedIssue: fullOrder.reportedIssue || "",
           diagnosis: fullOrder.diagnosis || "",
           solution: fullOrder.solution || "",
-          status: (fullOrder.status as any) || "aguardando_aprovacao",
+          status: (fullOrder.status as any) || "em_aberto",
           receivedById: fullOrder.receivedById || 0,
           technicianId: fullOrder.technicianId || 0,
           laborCost: fullOrder.laborCost || "0.00",
@@ -301,7 +307,7 @@ export default function ServiceOrders() {
   const handleNewOrder = async () => {
     try {
       const { data: nextNumber } = await fetchNextNumber();
-      const orderNumber = nextNumber ? `OS${nextNumber}` : "OS600";
+      const orderNumber = nextNumber ? `OS${nextNumber}` : "OS1000";
 
       setFormData({
         ...initialFormData,
@@ -310,13 +316,15 @@ export default function ServiceOrders() {
       setIsDialogOpen(true);
     } catch (err) {
       toast.error("Erro ao gerar número.");
-      setFormData({ ...initialFormData, orderNumber: "OS600" });
+      setFormData({ ...initialFormData, orderNumber: "OS1000" });
       setIsDialogOpen(true);
     }
   };
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { variant: "default" | "secondary" | "destructive" | "outline" }> = {
+      em_aberto: { variant: "outline" },
+      aguardando_orcamento: { variant: "secondary" },
       aguardando_aprovacao: { variant: "secondary" },
       aguardando_componente: { variant: "outline" },
       aprovado: { variant: "default" },
@@ -327,7 +335,7 @@ export default function ServiceOrders() {
       entregue_a_receber: { variant: "outline" },
     };
 
-    const statusInfo = statusMap[status] || statusMap.aguardando_aprovacao;
+    const statusInfo = statusMap[status] || statusMap.em_aberto;
     const label = statusOptions.find((s) => s.value === status)?.label || status;
     return <Badge variant={statusInfo.variant}>{label}</Badge>;
   };
@@ -651,7 +659,7 @@ export default function ServiceOrders() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="equipmentDescription">Descrição do Equipamento (Detalhes)</Label>
+                  <Label htmlFor="equipmentDescription">Descrição do Serviço</Label>
                   <Textarea
                     id="equipmentDescription"
                     value={formData.equipmentDescription}
@@ -825,7 +833,7 @@ export default function ServiceOrders() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="laborCost">Mão de Obra</Label>
                     <Input
@@ -839,24 +847,22 @@ export default function ServiceOrders() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="partsCost">Peças</Label>
-                    <Input
-                      id="partsCost"
-                      type="number"
-                      step="0.01"
-                      value={formData.partsCost}
-                      onChange={(e) =>
-                        setFormData({ ...formData, partsCost: e.target.value })
-                      }
+                    <Label>Imposto (6%)</Label>
+                     <Input
+                      value={((parseFloat(formData.laborCost) || 0) * 0.06).toFixed(2)}
+                      disabled
+                      className="bg-muted"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Total</Label>
+                    <Label>Total Final</Label>
                     <Input
                       value={(
-                        parseFloat(formData.laborCost) + parseFloat(formData.partsCost)
+                        (parseFloat(formData.laborCost) || 0) * 1.06 +
+                        (parseFloat(formData.partsCost) || 0)
                       ).toFixed(2)}
                       disabled
+                      className="font-bold bg-muted"
                     />
                   </div>
                 </div>

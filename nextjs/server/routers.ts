@@ -342,10 +342,10 @@ export const appRouter = router({
       .input(z.object({
         orderNumber: z.string().min(1),
         customerId: z.number(),
-        serviceType: z.enum(["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]),
+        serviceType: z.enum(["manutencao_industrial", "fitness", "refrigeracao", "automacao_industrial"]),
         // --- NOVOS CAMPOS DO EQUIPAMENTO ---
         equipment: z.string().optional(),
-        brand: z.string().optional(),
+        brand: z.string().optional(), 
         model: z.string().optional(),
         serialNumber: z.string().optional(),
         // ------------------------------------
@@ -353,7 +353,7 @@ export const appRouter = router({
         reportedIssue: z.string().optional(),
         diagnosis: z.string().optional(),
         solution: z.string().optional(),
-        status: z.enum(["aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).default("aguardando_aprovacao"),
+        status: z.enum(["em_aberto", "aguardando_orcamento", "aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).default("em_aberto"),
         receivedById: z.number().optional(),
         technicianId: z.number().optional(),
         laborCost: z.string().optional(),
@@ -379,7 +379,7 @@ export const appRouter = router({
         id: z.number(),
         orderNumber: z.string().optional(),
         customerId: z.number().optional(),
-        serviceType: z.enum(["manutencao_industrial", "fitness_refrigeracao", "automacao_industrial"]).optional(),
+        serviceType: z.enum(["manutencao_industrial", "fitness", "refrigeracao", "automacao_industrial"]).optional(),
         // --- NOVOS CAMPOS DO EQUIPAMENTO ---
         equipment: z.string().optional(),
         brand: z.string().optional(),
@@ -390,7 +390,7 @@ export const appRouter = router({
         reportedIssue: z.string().optional(),
         diagnosis: z.string().optional(),
         solution: z.string().optional(),
-        status: z.enum(["aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).optional(),
+        status: z.enum(["em_aberto", "aguardando_orcamento", "aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).optional(),
         receivedById: z.number().optional(),
         technicianId: z.number().optional(),
         laborCost: z.string().optional(),
