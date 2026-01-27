@@ -3,7 +3,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { trpc } from "../lib/trpc";
-// CORREÇÃO 1: Import default
 import DashboardLayout from "../components/DashboardLayout"; 
 import { Button } from "../components/ui/button";
 import {
@@ -22,8 +21,9 @@ import {
   DialogTrigger,
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../components/ui/form";
-import { Plus, Pencil, Trash2, Search, Building2, User } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Building2, User, Filter } from "lucide-react";
 import { toast } from "sonner";
 
 const formSchema = z.object({
@@ -40,6 +40,7 @@ const formSchema = z.object({
 
 export default function Customers() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -89,7 +90,6 @@ export default function Customers() {
     },
   });
 
-  // CORREÇÃO 2: Limpeza de dados antes de enviar para evitar erro de tipo
   const cleanData = (values: z.infer<typeof formSchema>) => {
     return {
       ...values,
@@ -106,7 +106,6 @@ export default function Customers() {
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     const cleaned = cleanData(values);
-    
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...cleaned });
     } else {
@@ -136,10 +135,32 @@ export default function Customers() {
     }
   };
 
-  const filteredCustomers = customers?.filter((c) =>
-    (c.company?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-    c.manager.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // --- LÓGICA DE FILTRAGEM ---
+  const filterByDate = (dateStr: string | Date) => {
+    if (dateFilter === "all") return true;
+    const date = new Date(dateStr);
+    const now = new Date();
+    
+    if (dateFilter === "this_month") {
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }
+    if (dateFilter === "last_3_months") {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(now.getMonth() - 3);
+      return date >= threeMonthsAgo;
+    }
+    if (dateFilter === "this_year") {
+      return date.getFullYear() === now.getFullYear();
+    }
+    return true;
+  };
+
+  const filteredCustomers = customers?.filter((c) => {
+    const matchesSearch = (c.company?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                          c.manager.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDate = filterByDate(c.createdAt);
+    return matchesSearch && matchesDate;
+  });
 
   return (
     <DashboardLayout>
@@ -165,7 +186,7 @@ export default function Customers() {
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="company"
@@ -255,14 +276,31 @@ export default function Customers() {
           </Dialog>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Search className="w-4 h-4 text-gray-500" />
-          <Input
-            placeholder="Buscar por empresa ou responsável..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
-          />
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="flex items-center space-x-2 w-full md:w-auto">
+            <Search className="w-4 h-4 text-gray-500" />
+            <Input
+              placeholder="Buscar por empresa ou responsável..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          
+          <div className="flex items-center gap-2 w-full md:w-auto">
+             <Filter className="w-4 h-4 text-muted-foreground" />
+             <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Data de Cadastro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todo o Período</SelectItem>
+                <SelectItem value="this_month">Este Mês</SelectItem>
+                <SelectItem value="last_3_months">Últimos 3 Meses</SelectItem>
+                <SelectItem value="this_year">Este Ano</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="rounded-md border">

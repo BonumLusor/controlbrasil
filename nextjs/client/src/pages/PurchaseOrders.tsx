@@ -29,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle, Eye, Package, Plus, ShoppingBag, Trash2, Truck } from "lucide-react";
+import { CheckCircle, Eye, Package, Plus, ShoppingBag, Trash2, Truck, Filter } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -59,14 +59,23 @@ const initialFormData: OrderFormData = {
   items: [],
 };
 
+const statusOptions = [
+  { value: "pendente", label: "Pendente" },
+  { value: "aguardando_entrega", label: "Aguardando Entrega" },
+  { value: "recebido_parcial", label: "Recebido Parcial" },
+  { value: "recebido", label: "Recebido" },
+  { value: "cancelado", label: "Cancelado" },
+];
+
 export default function PurchaseOrders() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState<OrderFormData>(initialFormData);
   
-  // Novo estado para Visualização de Detalhes
+  // Filtros
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+
   const [viewOrderId, setViewOrderId] = useState<number | null>(null);
-  
-  // Estados para controle da adição de itens
   const [itemType, setItemType] = useState<"component" | "product">("component");
   const [selectedId, setSelectedId] = useState<string>("");
   const [currentItem, setCurrentItem] = useState<{
@@ -81,7 +90,6 @@ export default function PurchaseOrders() {
   const { data: user } = trpc.auth.me.useQuery();
   const { data: orders, isLoading } = trpc.purchaseOrders.list.useQuery();
   
-  // Query para buscar itens do pedido selecionado (Visualização)
   const { data: orderItems } = trpc.purchaseOrders.getItems.useQuery(
     { purchaseOrderId: viewOrderId! }, 
     { enabled: !!viewOrderId }
@@ -90,7 +98,6 @@ export default function PurchaseOrders() {
   const { data: components } = trpc.components.list.useQuery();
   const { data: products } = trpc.products.list.useQuery();
 
-  // ... (Mutações create, delete, approve, receive mantidas iguais) ...
   const createMutation = trpc.purchaseOrders.create.useMutation({
     onSuccess: () => {
       toast.success("Pedido de compra criado com sucesso!");
@@ -243,6 +250,32 @@ export default function PurchaseOrders() {
     0
   );
 
+  // --- LÓGICA DE FILTRAGEM ---
+  const filterByDate = (dateStr: string | Date) => {
+    if (dateFilter === "all") return true;
+    const date = new Date(dateStr);
+    const now = new Date();
+    
+    if (dateFilter === "this_month") {
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }
+    if (dateFilter === "last_3_months") {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(now.getMonth() - 3);
+      return date >= threeMonthsAgo;
+    }
+    if (dateFilter === "this_year") {
+      return date.getFullYear() === now.getFullYear();
+    }
+    return true;
+  };
+
+  const filteredOrders = orders?.filter(order => {
+    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+    const matchesDate = filterByDate(order.orderDate);
+    return matchesStatus && matchesDate;
+  });
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -257,17 +290,59 @@ export default function PurchaseOrders() {
           </Button>
         </div>
 
+        {/* --- FILTROS UI --- */}
+        <div className="flex flex-wrap gap-4 items-center bg-muted/20 p-4 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Filtros:</span>
+          </div>
+          
+          <div className="w-[200px]">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                {statusOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-[200px]">
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todo o Período</SelectItem>
+                <SelectItem value="this_month">Este Mês</SelectItem>
+                <SelectItem value="last_3_months">Últimos 3 Meses</SelectItem>
+                <SelectItem value="this_year">Este Ano</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+           {(statusFilter !== "all" || dateFilter !== "all") && (
+            <Button variant="ghost" size="sm" onClick={() => { setStatusFilter("all"); setDateFilter("all"); }}>
+              Limpar
+            </Button>
+          )}
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle>Lista de Pedidos</CardTitle>
             <CardDescription>
-              {orders?.length || 0} pedido(s) cadastrado(s)
+              {filteredOrders?.length || 0} pedido(s) encontrado(s)
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-8">Carregando...</div>
-            ) : orders && orders.length > 0 ? (
+            ) : filteredOrders && filteredOrders.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -280,7 +355,7 @@ export default function PurchaseOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orders.map((order) => (
+                  {filteredOrders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.orderNumber}</TableCell>
                       <TableCell>{order.supplier || "-"}</TableCell>
@@ -293,7 +368,6 @@ export default function PurchaseOrders() {
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {/* BOTÃO DETALHES (OLHO) */}
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -344,12 +418,13 @@ export default function PurchaseOrders() {
               </Table>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhum pedido cadastrado
+                Nenhum pedido encontrado.
               </div>
             )}
           </CardContent>
         </Card>
 
+        {/* ... Dialogs (Detalhes e Novo Pedido) mantidos ... */}
         {/* --- DIALOG DE VISUALIZAÇÃO DE DETALHES --- */}
         <Dialog open={!!viewOrderId} onOpenChange={(open) => !open && setViewOrderId(null)}>
           <DialogContent className="sm:max-w-[600px]">
@@ -398,7 +473,7 @@ export default function PurchaseOrders() {
           </DialogContent>
         </Dialog>
 
-        {/* DIALOG DE NOVO PEDIDO (MANTIDO) */}
+        {/* DIALOG DE NOVO PEDIDO */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>

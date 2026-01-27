@@ -29,24 +29,23 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Edit, Plus, Trash2, Upload, X, Loader2, FileText } from "lucide-react";
+import { Edit, Plus, Trash2, Upload, X, Loader2, FileText, Filter } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { ServiceOrderPDF } from '@/components/reports/ServiceOrderPDF';
 
+// ... (Tipos e interfaces mantidos)
 type ServiceOrderFormData = {
   id?: number;
   orderNumber: string;
   customerId: number;
   serviceType: "manutencao_industrial" | "fitness_refrigeracao" | "automacao_industrial";
-  // --- NOVOS CAMPOS ---
   equipment: string;
   brand: string;
   model: string;
   serialNumber: string;
-  // --------------------
   equipmentDescription: string;
   reportedIssue: string;
   diagnosis: string;
@@ -60,7 +59,6 @@ type ServiceOrderFormData = {
   receivedDate: Date;
   notes: string;
   images: string[];
-  // --- COMPONENTES ---
   usedComponents: { componentId: number; quantity: number }[];
 };
 
@@ -110,6 +108,10 @@ export default function ServiceOrders() {
   const [formData, setFormData] = useState<ServiceOrderFormData>(initialFormData);
   const [isEditing, setIsEditing] = useState(false);
 
+  // --- FILTROS ---
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+
   // Estados locais para seleção de componente na modal
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
@@ -120,7 +122,6 @@ export default function ServiceOrders() {
   const { data: employees } = trpc.employees.listActive.useQuery();
   const { data: componentsList } = trpc.components.list.useQuery();
 
-  // Queries e Mutations auxiliares
   const { refetch: fetchNextNumber, isFetching: isLoadingNumber } = trpc.serviceOrders.getNextNumber.useQuery(undefined, {
     enabled: false,
     refetchOnWindowFocus: false
@@ -196,7 +197,6 @@ export default function ServiceOrders() {
   };
   // -----------------------------
 
-  // Manipulação de Imagens
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
@@ -264,13 +264,10 @@ export default function ServiceOrders() {
           orderNumber: fullOrder.orderNumber || "",
           customerId: fullOrder.customerId || 0,
           serviceType: (fullOrder.serviceType as any) || "manutencao_industrial",
-          
-          // Novos Campos
           equipment: fullOrder.equipment || "",
           brand: fullOrder.brand || "",
           model: fullOrder.model || "",
           serialNumber: fullOrder.serialNumber || "",
-
           equipmentDescription: fullOrder.equipmentDescription || "",
           reportedIssue: fullOrder.reportedIssue || "",
           diagnosis: fullOrder.diagnosis || "",
@@ -284,8 +281,6 @@ export default function ServiceOrders() {
           receivedDate: fullOrder.receivedDate ? new Date(fullOrder.receivedDate) : new Date(),
           notes: fullOrder.notes || "",
           images: fullOrder.images || [],
-          
-          // Componentes
           usedComponents: fullOrder.components ? fullOrder.components.map((c: any) => ({
              componentId: c.componentId,
              quantity: c.quantity
@@ -346,6 +341,32 @@ export default function ServiceOrders() {
     return employees?.find((e) => e.id === employeeId)?.name || "-";
   };
 
+  // --- LÓGICA DE FILTRAGEM ---
+  const filterByDate = (dateStr: string | Date) => {
+    if (dateFilter === "all") return true;
+    const date = new Date(dateStr);
+    const now = new Date();
+    
+    if (dateFilter === "this_month") {
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }
+    if (dateFilter === "last_3_months") {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(now.getMonth() - 3);
+      return date >= threeMonthsAgo;
+    }
+    if (dateFilter === "this_year") {
+      return date.getFullYear() === now.getFullYear();
+    }
+    return true;
+  };
+
+  const filteredOrders = orders?.filter(order => {
+    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+    const matchesDate = filterByDate(order.receivedDate);
+    return matchesStatus && matchesDate;
+  });
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -364,21 +385,64 @@ export default function ServiceOrders() {
           </Button>
         </div>
 
+        {/* --- FILTROS UI --- */}
+        <div className="flex flex-wrap gap-4 items-center bg-muted/20 p-4 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Filtros:</span>
+          </div>
+          
+          <div className="w-[200px]">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                {statusOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-[200px]">
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todo o Período</SelectItem>
+                <SelectItem value="this_month">Este Mês</SelectItem>
+                <SelectItem value="last_3_months">Últimos 3 Meses</SelectItem>
+                <SelectItem value="this_year">Este Ano</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {(statusFilter !== "all" || dateFilter !== "all") && (
+            <Button variant="ghost" size="sm" onClick={() => { setStatusFilter("all"); setDateFilter("all"); }}>
+              Limpar
+            </Button>
+          )}
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle>Lista de Ordens</CardTitle>
             <CardDescription>
-              {orders?.length || 0} ordem(ns) cadastrada(s)
+              {filteredOrders?.length || 0} ordem(ns) encontrada(s)
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-8">Carregando...</div>
-            ) : orders && orders.length > 0 ? (
+            ) : filteredOrders && filteredOrders.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nº Ordem</TableHead>
+                    <TableHead>Data Rec.</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Técnico</TableHead>
@@ -388,9 +452,12 @@ export default function ServiceOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orders.map((order) => (
+                  {filteredOrders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(order.receivedDate).toLocaleDateString()}
+                      </TableCell>
                       <TableCell>{getCustomerName(order.customerId)}</TableCell>
                       <TableCell className="capitalize">
                         {serviceTypes.find((t) => t.value === order.serviceType)?.label}
@@ -449,12 +516,13 @@ export default function ServiceOrders() {
               </Table>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhuma ordem cadastrada (Verifique se o banco de dados foi atualizado com 'db push')
+                Nenhuma ordem encontrada com os filtros atuais.
               </div>
             )}
           </CardContent>
         </Card>
 
+        {/* DIALOG DE NOVA/EDITAR ORDEM (MANTIDO IGUAL) */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -501,7 +569,7 @@ export default function ServiceOrders() {
                   </div>
                 </div>
 
-                {/* --- SEÇÃO DE EQUIPAMENTO (ESTILO UNIFICADO) --- */}
+                {/* --- SEÇÃO DE EQUIPAMENTO --- */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="equipment">Equipamento</Label>
@@ -540,7 +608,6 @@ export default function ServiceOrders() {
                     />
                   </div>
                 </div>
-                {/* ------------------------------------------------ */}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -673,7 +740,6 @@ export default function ServiceOrders() {
                     </Table>
                   )}
                 </div>
-                {/* --------------------------- */}
 
                 <div className="space-y-2 mt-2">
                   <Label>Imagens e Documentos</Label>

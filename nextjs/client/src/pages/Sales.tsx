@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Plus, RotateCcw, Trash2, CheckCircle, Ban } from "lucide-react"; // Novos ícones
+import { Plus, RotateCcw, Trash2, CheckCircle, Ban, Filter } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +19,16 @@ export default function Sales() {
   const [selectedProduct, setSelectedProduct] = useState("");
   const [qtyInput, setQtyInput] = useState(1);
 
+  // Filtros
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+
   const utils = trpc.useUtils();
   const { data: sales } = trpc.sales.list.useQuery();
   const { data: customers } = trpc.customers.list.useQuery();
   const { data: products } = trpc.products.list.useQuery();
 
-  // Mutation para mudar status (Concluir, Cancelar, Devolver)
+  // Mutation para mudar status
   const statusMutation = trpc.sales.updateStatus.useMutation({
     onSuccess: () => {
       toast.success("Status atualizado!");
@@ -59,7 +63,6 @@ export default function Sales() {
     deleteMutation.mutate({ id });
   };
 
-  // ... (funções addToCart, handleFinishSale mantidas iguais) ...
   const createSaleMutation = trpc.sales.create.useMutation({
     onSuccess: () => {
       toast.success("Venda registrada!");
@@ -97,12 +100,82 @@ export default function Sales() {
     });
   };
 
+  // --- LÓGICA DE FILTRAGEM ---
+  const filterByDate = (dateStr: string | Date) => {
+    if (dateFilter === "all") return true;
+    const date = new Date(dateStr);
+    const now = new Date();
+    
+    if (dateFilter === "this_month") {
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }
+    if (dateFilter === "last_3_months") {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(now.getMonth() - 3);
+      return date >= threeMonthsAgo;
+    }
+    if (dateFilter === "this_year") {
+      return date.getFullYear() === now.getFullYear();
+    }
+    return true;
+  };
+
+  const filteredSales = sales?.filter(sale => {
+    // Normalizar status para "concluido" se for null/undefined para compatibilidade
+    const currentStatus = sale.status || "concluido";
+    const matchesStatus = statusFilter === "all" || currentStatus === statusFilter;
+    const matchesDate = filterByDate(sale.saleDate);
+    return matchesStatus && matchesDate;
+  });
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Vendas</h1>
           <Button onClick={() => setIsDialogOpen(true)}><Plus className="mr-2 h-4 w-4" /> Nova Venda</Button>
+        </div>
+
+        {/* --- FILTROS UI --- */}
+        <div className="flex flex-wrap gap-4 items-center bg-muted/20 p-4 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Filtros:</span>
+          </div>
+          
+          <div className="w-[200px]">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="concluido">Concluído</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="devolvido">Devolvido</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-[200px]">
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todo o Período</SelectItem>
+                <SelectItem value="this_month">Este Mês</SelectItem>
+                <SelectItem value="last_3_months">Últimos 3 Meses</SelectItem>
+                <SelectItem value="this_year">Este Ano</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+           {(statusFilter !== "all" || dateFilter !== "all") && (
+            <Button variant="ghost" size="sm" onClick={() => { setStatusFilter("all"); setDateFilter("all"); }}>
+              Limpar
+            </Button>
+          )}
         </div>
 
         <Card>
@@ -120,7 +193,7 @@ export default function Sales() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales?.map((sale) => (
+                {filteredSales?.map((sale) => (
                   <TableRow key={sale.id} className={sale.status !== 'concluido' ? "bg-gray-50/50 opacity-70" : ""}>
                     <TableCell>#{sale.id}</TableCell>
                     <TableCell>{sale.customerName || "Cliente não identificado"}</TableCell>
@@ -164,12 +237,15 @@ export default function Sales() {
                     </TableCell>
                   </TableRow>
                 ))}
+                {filteredSales?.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="text-center py-4">Nenhuma venda encontrada.</TableCell></TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
 
-        {/* Mantenha o Dialog de Nova Venda igual ao anterior */}
+        {/* Dialog mantido */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[700px]">
             <DialogHeader>

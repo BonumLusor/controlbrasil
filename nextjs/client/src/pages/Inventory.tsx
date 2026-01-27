@@ -245,7 +245,8 @@ export default function Inventory() {
     searchQuery
       ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.partNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.manufacturer?.toLowerCase().includes(searchQuery.toLowerCase())
+        c.manufacturer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.specifications?.toLowerCase().includes(searchQuery.toLowerCase()) // Busca nas especificações
       : true
   );
 
@@ -406,10 +407,11 @@ export default function Inventory() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Tipo</TableHead>
+                    <TableHead>Especificações</TableHead>
                     <TableHead>Part Number</TableHead>
                     <TableHead>Fabricante</TableHead>
-                    <TableHead>Quantidade</TableHead>
-                    <TableHead>Localização</TableHead>
+                    <TableHead>Qtd</TableHead>
+                    <TableHead>Local</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -419,6 +421,9 @@ export default function Inventory() {
                     <TableRow key={component.id}>
                       <TableCell className="font-medium">{component.name}</TableCell>
                       <TableCell className="capitalize">{component.type}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={component.specifications || ""}>
+                        {component.specifications || "-"}
+                      </TableCell>
                       <TableCell>{component.partNumber || "-"}</TableCell>
                       <TableCell>{component.manufacturer || "-"}</TableCell>
                       <TableCell>{component.quantity}</TableCell>
@@ -611,7 +616,7 @@ export default function Inventory() {
           </DialogContent>
         </Dialog>
 
-        {/* --- DIALOG DE PRODUTOS (NOVO) --- */}
+        {/* --- DIALOG DE PRODUTOS --- */}
         <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
