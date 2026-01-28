@@ -110,6 +110,11 @@ export const products = pgTable("products", {
   minQuantity: integer("minQuantity").default(0),
   sku: varchar("sku", { length: 100 }).unique(),
   imageUrl: text("imageUrl"),
+  
+  // --- ADICIONE ESTA LINHA ---
+  active: boolean("active").default(true).notNull(), 
+  // ---------------------------
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

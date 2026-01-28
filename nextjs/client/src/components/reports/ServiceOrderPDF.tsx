@@ -18,7 +18,7 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
     paddingBottom: 10
@@ -41,6 +41,12 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 8,
     color: '#666',
+    marginBottom: 2
+  },
+  labelBold: {
+    fontSize: 8,
+    color: '#333',
+    fontWeight: 'bold',
     marginBottom: 2
   },
   value: {
@@ -78,7 +84,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     padding: 5,
-    marginBottom: 10
+    marginBottom: 5
   },
   table: {
     display: 'flex',
@@ -118,7 +124,7 @@ const styles = StyleSheet.create({
   totalsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 10
+    marginTop: 5
   },
   totalRow: {
     flexDirection: 'row',
@@ -142,7 +148,7 @@ const styles = StyleSheet.create({
   signaturesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 50
+    marginTop: 30
   },
   signatureBox: {
     width: '45%',
@@ -151,16 +157,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 5
   },
-  // --- ALTERAÇÕES AQUI PARA IMAGENS FULL WIDTH ---
   imagesContainer: {
-    flexDirection: 'column', // Empilha as imagens verticalmente
+    flexDirection: 'column',
     marginTop: 10,
-    gap: 15
+    gap: 10
   },
   imageWrapper: {
-    width: '100%', // Ocupa toda a largura disponível
-    height: 400,   // Altura aumentada para exibir bem a imagem
-    marginBottom: 15,
+    width: '100%',
+    height: 350,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#eee',
     padding: 5,
@@ -170,7 +175,7 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    objectFit: 'contain' // Garante que a imagem inteira apareça sem distorção
+    objectFit: 'contain'
   }
 });
 
@@ -203,7 +208,8 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
         <View style={styles.osTitleBox}>
           <Text style={{ fontSize: 10, marginBottom: 5 }}>Ordem de Serviço</Text>
           <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{order.orderNumber}</Text>
-          <Text style={{ fontSize: 7, marginTop: 5 }}>EMITIDO EM: {formatDate(new Date())}</Text>
+          <Text style={{ fontSize: 7, marginTop: 5 }}>EMITIDO: {formatDate(new Date())}</Text>
+          <Text style={{ fontSize: 7 }}>ENTRADA: {formatDate(order.receivedDate)}</Text>
         </View>
       </View>
 
@@ -211,72 +217,101 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
       <Text style={styles.sectionTitle}>Dados do Cliente</Text>
       <View style={styles.box}>
         <View style={styles.row}>
-          <View style={[styles.col, { width: '50%' }]}>
+          <View style={[styles.col, { width: '60%' }]}>
             <Text style={styles.label}>Cliente / Empresa:</Text>
             <Text style={styles.value}>{customer?.name || '-'}</Text>
           </View>
-          <View style={[styles.col, { width: '25%' }]}>
-            <Text style={styles.label}>CPF/CNPJ:</Text>
-            <Text style={styles.value}>{customer?.cpfCnpj || '-'}</Text>
-          </View>
-          <View style={[styles.col, { width: '25%' }]}>
-            <Text style={styles.label}>Telefone:</Text>
-            <Text style={styles.value}>{customer?.phone || '-'}</Text>
+          <View style={[styles.col, { width: '40%' }]}>
+            <Text style={styles.label}>Responsável:</Text>
+            <Text style={styles.value}>{customer?.manager || '-'}</Text>
           </View>
         </View>
         <View style={styles.row}>
-          <View style={[styles.col, { width: '50%' }]}>
+          <View style={[styles.col, { width: '30%' }]}>
+            <Text style={styles.label}>CPF/CNPJ:</Text>
+            <Text style={styles.value}>{customer?.cpfCnpj || '-'}</Text>
+          </View>
+           <View style={[styles.col, { width: '30%' }]}>
+            <Text style={styles.label}>Telefone:</Text>
+            <Text style={styles.value}>{customer?.phone || '-'}</Text>
+          </View>
+           <View style={[styles.col, { width: '40%' }]}>
+            <Text style={styles.label}>Email:</Text>
+            <Text style={styles.value}>{customer?.email || '-'}</Text>
+          </View>
+        </View>
+        <View style={styles.row}>
+          <View style={[styles.col, { width: '100%' }]}>
             <Text style={styles.label}>Endereço:</Text>
             <Text style={styles.value}>
               {customer?.address || ''}, {customer?.city || ''} - {customer?.state || ''}
             </Text>
           </View>
-          <View style={[styles.col, { width: '50%' }]}>
-            <Text style={styles.label}>Email:</Text>
-            <Text style={styles.value}>{customer?.email || '-'}</Text>
-          </View>
         </View>
       </View>
 
-      {/* --- DADOS DO EQUIPAMENTO --- */}
-      <Text style={styles.sectionTitle}>Equipamento</Text>
-      <View style={styles.table}>
-        <View style={styles.tableRow}>
-          <View style={[styles.tableColHeader, { width: '20%' }]}><Text style={styles.tableCellHeader}>Equipamento</Text></View>
-          <View style={[styles.tableColHeader, { width: '40%' }]}><Text style={styles.tableCellHeader}>Descrição do Serviço</Text></View>
-          <View style={[styles.tableColHeader, { width: '40%' }]}><Text style={styles.tableCellHeader}>Defeitos Apresentados</Text></View>
-        </View>
-        <View style={styles.tableRow}>
-          <View style={[styles.tableCol, { width: '20%' }]}>
-            <Text style={styles.tableCell}>{order.equipmentDescription || '-'}</Text>
-          </View>
-          <View style={[styles.tableCol, { width: '40%' }]}>
-            <Text style={styles.tableCell}>{order.diagnosis || '-'}</Text>
-          </View>
-          <View style={[styles.tableCol, { width: '40%' }]}>
-            <Text style={styles.tableCell}>{order.reportedIssue || '-'}</Text>
-          </View>
-        </View>
+      {/* --- DADOS DO EQUIPAMENTO E DIAGNÓSTICO --- */}
+      <Text style={styles.sectionTitle}>Equipamento e Diagnóstico</Text>
+      <View style={styles.box}>
+         {/* Linha de Identificação do Equipamento */}
+         <View style={[styles.row, { borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 5, marginBottom: 5 }]}>
+            <View style={[styles.col, { width: '30%' }]}>
+               <Text style={styles.labelBold}>Equipamento:</Text>
+               <Text style={styles.value}>{order.equipment || order.equipmentDescription || '-'}</Text>
+            </View>
+            <View style={[styles.col, { width: '25%' }]}>
+               <Text style={styles.labelBold}>Marca:</Text>
+               <Text style={styles.value}>{order.brand || '-'}</Text>
+            </View>
+            <View style={[styles.col, { width: '25%' }]}>
+               <Text style={styles.labelBold}>Modelo:</Text>
+               <Text style={styles.value}>{order.model || '-'}</Text>
+            </View>
+            <View style={[styles.col, { width: '20%' }]}>
+               <Text style={styles.labelBold}>Nº Série:</Text>
+               <Text style={styles.value}>{order.serialNumber || '-'}</Text>
+            </View>
+         </View>
+
+         {/* Descrições detalhadas */}
+         <View style={styles.row}>
+            <View style={[styles.col, { width: '100%', marginBottom: 5 }]}>
+               <Text style={styles.labelBold}>Defeito Relatado:</Text>
+               <Text style={styles.value}>{order.reportedIssue || '-'}</Text>
+            </View>
+         </View>
       </View>
 
-      {/* --- SERVIÇOS EXECUTADOS --- */}
-      <Text style={styles.sectionTitle}>Serviços Executados</Text>
+      {/* --- ITENS E SERVIÇOS (COM LISTAGEM DE COMPONENTES) --- */}
+      <Text style={styles.sectionTitle}>Peças e Serviços Executados</Text>
       <View style={styles.table}>
         <View style={styles.tableRow}>
-          <View style={[styles.tableColHeader, { width: '10%' }]}><Text style={styles.tableCellHeader}>Item</Text></View>
-          <View style={[styles.tableColHeader, { width: '50%' }]}><Text style={styles.tableCellHeader}>Descrição</Text></View>
+          <View style={[styles.tableColHeader, { width: '10%' }]}><Text style={styles.tableCellHeader}>#</Text></View>
+          <View style={[styles.tableColHeader, { width: '50%' }]}><Text style={styles.tableCellHeader}>Descrição do Item / Serviço</Text></View>
           <View style={[styles.tableColHeader, { width: '10%' }]}><Text style={styles.tableCellHeader}>Qtd</Text></View>
           <View style={[styles.tableColHeader, { width: '15%' }]}><Text style={styles.tableCellHeader}>V. Unit</Text></View>
           <View style={[styles.tableColHeader, { width: '15%' }]}><Text style={styles.tableCellHeader}>Total</Text></View>
         </View>
 
+        {/* Lista de Componentes/Peças */}
+        {order.components && order.components.length > 0 ? (
+           order.components.map((comp: any, index: number) => (
+             <View style={styles.tableRow} key={`comp-${index}`}>
+               <View style={[styles.tableCol, { width: '10%' }]}><Text style={styles.tableCell}>{index + 1}</Text></View>
+               <View style={[styles.tableCol, { width: '50%' }]}><Text style={styles.tableCell}>{comp.name || 'Peça diversa'}</Text></View>
+               <View style={[styles.tableCol, { width: '10%' }]}><Text style={styles.tableCell}>{comp.quantity}</Text></View>
+               <View style={[styles.tableCol, { width: '15%' }]}><Text style={styles.tableCell}>{formatCurrency(comp.unitPrice || 0)}</Text></View>
+               <View style={[styles.tableCol, { width: '15%' }]}><Text style={styles.tableCell}>{formatCurrency((comp.quantity || 0) * (comp.unitPrice || 0))}</Text></View>
+             </View>
+           ))
+        ) : null}
+
         {/* Linha de Mão de Obra */}
         <View style={styles.tableRow}>
-          <View style={[styles.tableCol, { width: '10%' }]}><Text style={styles.tableCell}>01</Text></View>
           <View style={[styles.tableCol, { width: '50%' }]}><Text style={styles.tableCell}>{order.solution || "Mão de Obra Técnica Especializada"}</Text></View>
           <View style={[styles.tableCol, { width: '10%' }]}><Text style={styles.tableCell}>1</Text></View>
-          <View style={[styles.tableCol, { width: '15%' }]}><Text style={styles.tableCell}>{formatCurrency(order.laborCost)}</Text></View>
-          <View style={[styles.tableCol, { width: '15%' }]}><Text style={styles.tableCell}>{formatCurrency(order.laborCost)}</Text></View>
+          <View style={[styles.tableCol, { width: '20%' }]}><Text style={styles.tableCell}>{formatCurrency(order.laborCost)}</Text></View>
+          <View style={[styles.tableCol, { width: '20%' }]}><Text style={styles.tableCell}>{formatCurrency(order.laborCost)}</Text></View>
         </View>
       </View>
 
@@ -287,22 +322,45 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
             <Text style={styles.totalLabel}>Total Serviços:</Text>
             <Text style={styles.totalValue}>{formatCurrency(order.laborCost)}</Text>
           </View>
+          
+          {/* ALTERAÇÃO: Removido 'Total Peças' e adicionado 'Impostos' */}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Produtos:</Text>
-            <Text style={styles.totalValue}>{formatCurrency(order.partsCost)}</Text>
+            <Text style={styles.totalLabel}>Impostos:</Text>
+            <Text style={styles.totalValue}>{formatCurrency((order.laborCost * 0.06) || 0)}</Text>
           </View>
+          
           <View style={[styles.totalRow, { borderBottomWidth: 0, marginTop: 5 }]}>
-            <Text style={[styles.totalLabel, { fontSize: 11 }]}>TOTAL ORDEM:</Text>
+            <Text style={[styles.totalLabel, { fontSize: 11 }]}>TOTAL GERAL:</Text>
             <Text style={[styles.totalValue, { fontSize: 11, fontWeight: 'bold' }]}>{formatCurrency(order.totalCost)}</Text>
           </View>
         </View>
       </View>
 
-      {/* --- IMAGENS / FOTOS --- */}
+       {/* --- OBSERVAÇÕES E GARANTIA --- */}
+       <View style={{ marginTop: 10, padding: 5, borderWidth: 1, borderColor: '#eee', backgroundColor: '#f9f9f9' }}>
+         <Text style={styles.labelBold}>Observações:</Text>
+         <Text style={{ fontSize: 8, marginBottom: 5 }}>{order.notes || 'Sem observações adicionais.'}</Text>
+         <Text style={styles.labelBold}>Técnico Responsável: <Text style={{fontWeight: 'normal'}}>{technician?.name || 'Não informado'}</Text></Text>
+         <Text style={{ fontSize: 8, marginTop: 2 }}>Garantia de 90 dias para os serviços executados e peças substituídas, conforme Art. 26 do CDC.</Text>
+      </View>
+
+      {/* --- ASSINATURAS --- */}
+      <View style={styles.signaturesContainer}>
+        <View style={styles.signatureBox}>
+          <Text style={styles.label}>Aprovação / Recebimento do Cliente</Text>
+          <Text style={{ marginTop: 20, fontSize: 8 }}>{customer?.name || 'Cliente'}</Text>
+          <Text style={{ fontSize: 7, color: '#999' }}>CPF/CNPJ: {customer?.cpfCnpj}</Text>
+        </View>
+        <View style={styles.signatureBox}>
+          <Text style={styles.label}>Responsável Técnico / Empresa</Text>
+          <Text style={{ marginTop: 20, fontSize: 8 }}>CONTROL BRASIL</Text>
+        </View>
+      </View>
+
+      {/* --- RELATÓRIO FOTOGRÁFICO --- */}
       {order.images && order.images.length > 0 ? (
-        <View break={false} style={{ marginTop: 20 }}>
-           <Text style={styles.sectionTitle}>Fotos / Anexos</Text>
-           {/* Contêiner agora em coluna */}
+        <View break={true} style={{ marginTop: 20 }}>
+           <Text style={styles.sectionTitle}>Relatório Fotográfico</Text>
            <View style={styles.imagesContainer}>
              {order.images.map((imgUrl: string, index: number) => (
                 <View key={index} style={styles.imageWrapper} wrap={false}>
@@ -310,28 +368,12 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
                      src={imgUrl} 
                      style={styles.image} 
                    />
+                   <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Imagem {index + 1}</Text>
                 </View>
              ))}
            </View>
         </View>
       ) : null}
-
-      {/* --- RODAPÉ / ASSINATURAS --- */}
-      <View style={{ marginTop: 30, marginBottom: 10 }}>
-         <Text style={styles.label}>Técnico Responsável: {technician?.name || 'Não informado'}</Text>
-         <Text style={styles.label}>Garantia: 3 meses para os serviços executados.</Text>
-      </View>
-
-      <View style={styles.signaturesContainer}>
-        <View style={styles.signatureBox}>
-          <Text style={styles.label}>Assinatura do Cliente</Text>
-          <Text style={{ marginTop: 20, fontSize: 8 }}>{customer?.name || 'Cliente'}</Text>
-        </View>
-        <View style={styles.signatureBox}>
-          <Text style={styles.label}>Assinatura do Responsável</Text>
-          <Text style={{ marginTop: 20, fontSize: 8 }}>CONTROL BRASIL</Text>
-        </View>
-      </View>
 
     </Page>
   </Document>

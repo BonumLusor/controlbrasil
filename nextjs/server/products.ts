@@ -1,45 +1,70 @@
+// nextjs/server/products.ts
+import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
-import { products, type InsertProduct } from "../drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { products, type Product, type InsertProduct } from "../drizzle/schema";
 
-export async function getAllProducts() {
+export async function getAllProducts(): Promise<Product[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // ALTERADO: Adicionado filtro .where(eq(products.active, true))
+  return await db
+    .select()
+    .from(products)
+    .where(eq(products.active, true)) 
+    .orderBy(desc(products.createdAt));
+}
+
+export async function getProductById(id: number): Promise<Product | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(products)
+    .where(eq(products.id, id))
+    .limit(1);
+    
+  return result[0];
+}
+
+export async function createProduct(data: InsertProduct): Promise<Product> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  return await db.select().from(products).orderBy(desc(products.createdAt));
+  const result = await db.insert(products).values(data).returning();
+  return result[0];
 }
 
-export async function getProductById(id: number) {
+export async function updateProduct(id: number, data: Partial<InsertProduct>): Promise<Product> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
-  const [product] = await db.select().from(products).where(eq(products.id, id));
-  return product;
-}
-
-export async function createProduct(data: InsertProduct) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  const [newProduct] = await db.insert(products).values(data).returning();
-  return newProduct;
-}
-
-export async function updateProduct(id: number, data: Partial<InsertProduct>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  const [updatedProduct] = await db
+  
+  const result = await db
     .update(products)
     .set({ ...data, updatedAt: new Date() })
     .where(eq(products.id, id))
     .returning();
-  return updatedProduct;
+    
+  return result[0];
 }
 
-export async function deleteProduct(id: number) {
+export async function deleteProduct(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.delete(products).where(eq(products.id, id));
+  // ALTERADO: Ao invés de delete(), usamos update() para active: false
+  await db
+    .update(products)
+    .set({ active: false, updatedAt: new Date() })
+    .where(eq(products.id, id));
+}
+
+// Se você tiver a função getLowStockProducts, lembre de filtrar os ativos também:
+export async function getLowStockProducts() {
+    const db = await getDb();
+    if (!db) return [];
+    // Exemplo de lógica (ajuste conforme sua implementação real)
+    // return await db.select().from(products).where(and(eq(products.active, true), ...));
+    // Se não tiver essa função, ignore.
 }
