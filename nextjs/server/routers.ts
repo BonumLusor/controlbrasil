@@ -97,6 +97,7 @@ export const appRouter = router({
         price: z.string(),
         quantity: z.number().default(0),
         minQuantity: z.number().optional(),
+        image: z.string().nullable().optional(),
         sku: z.string().optional()
       }))
       .mutation(async ({ input }) => {
@@ -111,6 +112,7 @@ export const appRouter = router({
         price: z.string().optional(),
         quantity: z.number().optional(),
         minQuantity: z.number().optional(),
+        image: z.string().nullable().optional(),
         sku: z.string().optional()
       }))
       .mutation(async ({ input }) => {
@@ -396,6 +398,7 @@ export const appRouter = router({
         laborCost: z.string().optional(),
         partsCost: z.string().optional(),
         totalCost: z.string().optional(),
+        receivedDate: z.date().optional(), // ADICIONADO: Permitir edição da data de entrada
         completedDate: z.date().optional(),
         deliveredDate: z.date().optional(),
         notes: z.string().optional(),

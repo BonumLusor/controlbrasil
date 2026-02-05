@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, decimal, boolean, pgEnum, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, timestamp, decimal, boolean, pgEnum, integer, customType } from "drizzle-orm/pg-core";
 
 // Enums
 export const roleEnum = pgEnum("role", ["user", "admin"]);
@@ -11,6 +11,12 @@ export const serviceTypeEnum = pgEnum("serviceType", [
   "refrigeracao",        // Alterado (separado)
   "automacao_industrial"
 ]);
+
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+  toDriver: (val: Buffer) => val,
+  fromDriver: (val: unknown) => val as Buffer,
+});
 
 export const os_status = pgEnum("os_status", [
   "em_aberto",            // Adicionado
@@ -109,16 +115,18 @@ export const products = pgTable("products", {
   quantity: integer("quantity").default(0).notNull(),
   minQuantity: integer("minQuantity").default(0),
   sku: varchar("sku", { length: 100 }).unique(),
+  
+  // Agora usaremos primordialmente este campo para o caminho do arquivo (ex: /uploads/products/imagem.jpg)
   imageUrl: text("imageUrl"),
   
-  // --- ADICIONE ESTA LINHA ---
   active: boolean("active").default(true).notNull(), 
-  // ---------------------------
+  
+  // Campo image (bytea) mantido apenas para compatibilidade legada ou pode ser removido
+  // image: bytea("image"), 
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
-
 export const saleStatusEnum = pgEnum("sale_status_enum", ["concluido", "cancelado", "devolvido"]);
 
 export const sales = pgTable("sales", {

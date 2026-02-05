@@ -28,9 +28,11 @@ export async function createEmployee(data: InsertEmployee): Promise<Employee> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db.insert(employees).values(data);
-  const insertedId = Number(result[0].insertId);
+  const result = await db.insert(employees).values(data).returning({ id: employees.id });
+  const insertedId = result[0]?.id;
   
+  if (!insertedId) throw new Error("Failed to create employee");
+
   const employee = await getEmployeeById(insertedId);
   if (!employee) throw new Error("Failed to create employee");
   

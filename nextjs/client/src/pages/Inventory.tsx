@@ -27,8 +27,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { trpc } from "@/lib/trpc";
-import { AlertTriangle, Edit, Package, Plus, Search, Trash2, ShoppingBag } from "lucide-react";
+import { trpc } from "../lib/trpc"; // Mantendo caminho relativo que costuma ser mais seguro
+import { AlertTriangle, Edit, Package, Plus, Search, Trash2, ShoppingBag, Upload, Image as ImageIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,7 @@ type ProductFormData = {
   quantity: number;
   minQuantity: number;
   sku: string;
+  image?: string | null; // Base64 string para upload ou display
 };
 
 // --- DADOS INICIAIS ---
@@ -81,6 +82,7 @@ const initialProductData: ProductFormData = {
   quantity: 0,
   minQuantity: 0,
   sku: "",
+  image: null
 };
 
 const componentTypes = [
@@ -220,7 +222,30 @@ export default function Inventory() {
     }
   };
 
+  // Helper OTIMIZADO para converter Buffer de imagem
+  // Usa Blob e createObjectURL para evitar travar o navegador com strings gigantes
+const getImageSource = (prod: any): string | undefined => {
+    if (!prod) return undefined;
+    
+    // Prioridade total para a URL salva no disco
+    if (prod.imageUrl) return prod.imageUrl;
+    
+    // Fallback para caso ainda existam dados binários antigos no banco
+    if (prod.image && prod.image.type === 'Buffer') {
+       try {
+        const byteArray = new Uint8Array(prod.image.data);
+        const blob = new Blob([byteArray], { type: 'image/jpeg' });
+        return URL.createObjectURL(blob);
+      } catch (e) { return undefined; }
+    }
+    
+    return undefined;
+  };
+
   const handleEditProduct = (prod: any) => {
+    // Processar imagem para edição
+    const imageSrc = getImageSource(prod.image);
+    
     setProductForm({
       id: prod.id,
       name: prod.name || "",
@@ -229,6 +254,7 @@ export default function Inventory() {
       quantity: prod.quantity || 0,
       minQuantity: prod.minQuantity || 0,
       sku: prod.sku || "",
+      image: prod.imageUrl || null 
     });
     setIsEditingProduct(true);
     setIsProductDialogOpen(true);
@@ -240,13 +266,31 @@ export default function Inventory() {
     }
   };
 
+  // Novo Handler: Upload de Imagem
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tamanho (ex: max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("A imagem deve ter no máximo 2MB");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProductForm((prev) => ({ ...prev, image: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // --- UTILITÁRIOS ---
   const filteredComponents = components?.filter((c) =>
     searchQuery
       ? c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.partNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.manufacturer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.specifications?.toLowerCase().includes(searchQuery.toLowerCase()) // Busca nas especificações
+        c.specifications?.toLowerCase().includes(searchQuery.toLowerCase())
       : true
   );
 
@@ -283,7 +327,7 @@ export default function Inventory() {
           </Card>
         )}
 
-        {/* --- SEÇÃO 1: PRODUTOS DE VENDA (NOVO) --- */}
+        {/* --- SEÇÃO 1: PRODUTOS DE VENDA --- */}
         <div className="flex items-center justify-between pt-4">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <ShoppingBag className="h-6 w-6 text-primary" />
@@ -311,6 +355,7 @@ export default function Inventory() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Imagem</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead>Preço Venda</TableHead>
@@ -322,6 +367,20 @@ export default function Inventory() {
                 <TableBody>
                   {products?.map((prod) => (
                     <TableRow key={prod.id}>
+                      <TableCell>
+                        <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center overflow-hidden border">
+                          { prod.imageUrl ? (
+                             // Renderiza imagem do DB (Buffer convertido) ou URL
+                            <img 
+                              src={getImageSource(prod)} 
+                              alt={prod.name} 
+                              className="h-full w-full object-cover" 
+                            />
+                          ) : (
+                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium">{prod.name}</TableCell>
                       <TableCell>{prod.sku || "-"}</TableCell>
                       <TableCell>R$ {Number(prod.price).toFixed(2)}</TableCell>
@@ -349,7 +408,7 @@ export default function Inventory() {
                   ))}
                   {(!products || products.length === 0) && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                         Nenhum produto cadastrado para venda
                       </TableCell>
                     </TableRow>
@@ -360,7 +419,7 @@ export default function Inventory() {
           </CardContent>
         </Card>
 
-        {/* --- SEÇÃO 2: COMPONENTES ELETRÔNICOS (ORIGINAL) --- */}
+        {/* --- SEÇÃO 2: COMPONENTES ELETRÔNICOS --- */}
         <div className="flex items-center justify-between pt-8 border-t">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -694,6 +753,41 @@ export default function Inventory() {
                     rows={3}
                   />
                 </div>
+
+                {/* --- UPLOAD DE IMAGEM --- */}
+                <div className="space-y-2">
+                  <Label htmlFor="prod-image">Imagem do Produto</Label>
+                  <div className="flex gap-4 items-center">
+                    {productForm.image && (
+                      <div className="h-16 w-16 rounded border bg-muted overflow-hidden flex-shrink-0">
+                         {/* Renderiza o preview da imagem (base64) */}
+                        <img 
+                          src={productForm.image} 
+                          alt="Preview" 
+                          className="h-full w-full object-cover" 
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="relative">
+                        <Input
+                          id="prod-image"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="cursor-pointer"
+                        />
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground">
+                          <Upload className="h-4 w-4" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Formatos: JPG, PNG. Máximo 2MB.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
               </div>
               <DialogFooter>
                 <Button

@@ -29,12 +29,17 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Edit, Plus, Trash2, Upload, X, Loader2, FileText, Filter } from "lucide-react";
+import { Edit, Plus, Trash2, Upload, X, Loader2, FileText, Filter, CalendarIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { ServiceOrderPDF } from '@/components/reports/ServiceOrderPDF';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 // Tipos atualizados para corresponder às opções (ServiceTypes e StatusOptions)
 type ServiceOrderFormData = {
@@ -56,7 +61,7 @@ type ServiceOrderFormData = {
   laborCost: string;
   partsCost: string;
   totalCost: string;
-  receivedDate: Date;
+  receivedDate: Date | undefined;
   notes: string;
   images: string[];
   usedComponents: { componentId: number; quantity: number }[];
@@ -250,10 +255,10 @@ export default function ServiceOrders() {
     const totalCost = (labor + parts + taxValue).toFixed(2);
 
     if (isEditing && formData.id) {
-      updateMutation.mutate({ ...formData, totalCost, id: formData.id });
+      updateMutation.mutate({ ...formData, totalCost, id: formData.id, receivedDate: formData.receivedDate || new Date() });
     } else {
       const { id, ...data } = formData;
-      createMutation.mutate({ ...data, totalCost });
+      createMutation.mutate({ ...data, totalCost, receivedDate: data.receivedDate || new Date() });
     }
   };
 
@@ -464,7 +469,12 @@ export default function ServiceOrders() {
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.orderNumber}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {new Date(order.receivedDate).toLocaleDateString()}
+                        {/* DATA FORMATADA DD/MM/YY */}
+                        {new Date(order.receivedDate).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: '2-digit'
+                        })}
                       </TableCell>
                       <TableCell>{getCustomerName(order.customerId)}</TableCell>
                       <TableCell className="capitalize">
@@ -530,7 +540,7 @@ export default function ServiceOrders() {
           </CardContent>
         </Card>
 
-        {/* DIALOG DE NOVA/EDITAR ORDEM (MANTIDO IGUAL) */}
+        {/* DIALOG DE NOVA/EDITAR ORDEM */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -543,7 +553,8 @@ export default function ServiceOrders() {
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                {/* --- MUDANÇA: Grid de 3 colunas para incluir Data --- */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="orderNumber">Nº Ordem *</Label>
                     <Input
@@ -555,6 +566,46 @@ export default function ServiceOrders() {
                       required
                     />
                   </div>
+                  
+                  {/* NOVO CAMPO DE DATA COM DATEPICKER CUSTOMIZADO */}
+                  <div className="space-y-2 flex flex-col">
+                    <Label htmlFor="receivedDate">Data de Entrada</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !formData.receivedDate && "text-muted-foreground"
+                          )}
+                        >
+                          {formData.receivedDate ? (
+                            format(formData.receivedDate, "dd/MM/yy", { locale: ptBR })
+                          ) : (
+                            <span>Selecione a data</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={formData.receivedDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Ajusta para meio-dia para evitar problemas de fuso horário
+                              const adjustedDate = new Date(date);
+                              adjustedDate.setHours(12, 0, 0, 0);
+                              setFormData({ ...formData, receivedDate: adjustedDate });
+                            }
+                          }}
+                          initialFocus
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="customerId">Cliente *</Label>
                     <Select
@@ -599,7 +650,7 @@ export default function ServiceOrders() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
-                   <div className="space-y-2">
+                    <div className="space-y-2">
                     <Label htmlFor="model">Modelo</Label>
                     <Input
                       id="model"
@@ -848,7 +899,7 @@ export default function ServiceOrders() {
                   </div>
                   <div className="space-y-2">
                     <Label>Imposto (6%)</Label>
-                     <Input
+                      <Input
                       value={((parseFloat(formData.laborCost) || 0) * 0.06).toFixed(2)}
                       disabled
                       className="bg-muted"

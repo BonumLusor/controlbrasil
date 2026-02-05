@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Brasil - Soluções em Eletrônica Industrial e Automação</title>
+    <meta name="description" content="Reparo em eletrônicos industriais, equipamentos fitness e refrigeração. Atendimento especializado para todo o Brasil.">
+    
+    <!-- Tailwind CSS (Framework Moderno de Estilo) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome (Ícones) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="favicon.ico" type="ico.png">
+
+    <!-- Configurações Personalizadas do Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#333333',    // Cinza escuro da logo (CONTROL e Blocos)
+                            teal: '#00C2A8',    // Verde/Teal da logo (BRASIL)
+                            yellow: '#FFCC00',  // Amarelo da logo (Blocos)
+                            gray: '#f3f4f6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Estilos adicionais para animações suaves */
+        .fade-in {
+            animation: fadeIn 0.8s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .hero-bg {
+            /* Fundo escuro ajustado para combinar com o cinza da marca */
+            background-image: linear-gradient(rgba(30, 30, 30, 0.9), rgba(30, 30, 30, 0.8)), url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+    </style>
+</head>
+<body class="font-sans text-slate-800 antialiased bg-white">
+
+    <!-- Navbar -->
+    <nav class="fixed w-full z-50 bg-white/95 backdrop-blur-sm shadow-md transition-all duration-300" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-24">
+                <!-- Logo -->
+                <div class="flex-shrink-0 flex items-center">
+                    <img src="logo.png" alt="Control Brasil Logo" class="h-16 w-auto object-contain">
+                </div>
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex space-x-8 items-center">
+                    <a href="#home" class="text-slate-600 hover:text-brand-teal font-medium transition">Home</a>
+                    <a href="#servicos" class="text-slate-600 hover:text-brand-teal font-medium transition">Soluções</a>
+                    <a href="#sobre" class="text-slate-600 hover:text-brand-teal font-medium transition">Sobre Nós</a>
+                    <a href="#contato" class="text-slate-600 hover:text-brand-teal font-medium transition">Contato</a>
+                    
+                    <!-- Botão Loja Destacado -->
+                    <a href="/store" class="bg-brand-teal text-white px-5 py-2.5 rounded-full font-semibold hover:bg-teal-600 transition shadow-lg hover:shadow-teal-500/30 flex items-center gap-2">
+                        <i class="fa-solid fa-cart-shopping"></i>
+                        Loja de Equipamentos
+                    </a>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-btn" class="text-slate-600 hover:text-brand-teal focus:outline-none">
+                        <i class="fa-solid fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Panel -->
+        <div class="md:hidden hidden bg-white border-t" id="mobile-menu">
+            <div class="px-4 pt-2 pb-4 space-y-1 shadow-lg">
+                <a href="#home" class="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-brand-teal hover:bg-slate-50">Home</a>
+                <a href="#servicos" class="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-brand-teal hover:bg-slate-50">Soluções</a>
+                <a href="#sobre" class="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-brand-teal hover:bg-slate-50">Sobre Nós</a>
+                <a href="#contato" class="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-brand-teal hover:bg-slate-50">Contato</a>
+                <a href="/store" class="block w-full text-center mt-4 px-3 py-3 rounded-md text-base font-bold bg-brand-teal text-white hover:bg-teal-600">
+                    <i class="fa-solid fa-cart-shopping mr-2"></i> Visite Nossa Loja
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="scroll-mt-32 hero-bg h-screen min-h-[600px] flex items-center justify-center text-white pt-24">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center fade-in">
+            <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
+                Excelência em <span class="text-brand-yellow">Manutenção Industrial</span> <br> e Automação
+            </h1>
+            <p class="text-lg md:text-xl text-slate-200 mb-10 max-w-3xl mx-auto">
+                Especialistas em reparos de eletrônicos industriais, equipamentos fitness e refrigeração. 
+                Atendemos com agilidade e qualidade técnica superior para impulsionar a sua produtividade.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <!-- Link direto para WhatsApp com mensagem -->
+                <a href="https://wa.me/5512996371799?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20gostaria%20de%20solicitar%20um%20or%C3%A7amento." target="_blank" class="bg-brand-yellow text-brand-dark px-8 py-4 rounded-lg font-bold hover:bg-yellow-400 transition shadow-lg transform hover:-translate-y-1 flex items-center justify-center gap-2">
+                    <i class="fa-brands fa-whatsapp text-xl"></i> Solicitar Orçamento
+                </a>
+                <a href="#servicos" class="border-2 border-white text-white px-8 py-4 rounded-lg font-bold hover:bg-white hover:text-brand-dark transition">
+                    Conhecer Serviços
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Store Promo Section -->
+    <section class="bg-brand-dark py-12 border-b border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+                <div class="text-white">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-2 flex items-center gap-3">
+                        <i class="fa-solid fa-box-open text-brand-yellow"></i>
+                        Precisa de equipamentos novos?
+                    </h2>
+                    <p class="text-slate-300">Confira nosso catálogo completo de peças industriais e suprimentos com entrega garantida.</p>
+                </div>
+                <a href="/store" class="whitespace-nowrap bg-white text-brand-dark px-8 py-3 rounded-full font-bold hover:bg-slate-100 transition shadow-xl ring-4 ring-white/20">
+                    Acessar Loja Online <i class="fa-solid fa-arrow-right ml-2"></i>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Serviços -->
+    <section id="servicos" class="scroll-mt-32 py-24 bg-slate-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="text-brand-teal font-bold uppercase tracking-wider text-sm">O que fazemos</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-brand-dark mt-2">Nossas Soluções</h2>
+                <div class="w-24 h-1 bg-brand-yellow mx-auto mt-4 rounded-full"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Card 1: Industrial -->
+                <div class="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition duration-300 transform hover:-translate-y-2 border-b-4 border-brand-teal group">
+                    <div class="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-brand-teal transition">
+                        <i class="fa-solid fa-robot text-brand-teal text-3xl group-hover:text-white transition"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-dark mb-4">Eletrônicos Industriais</h3>
+                    <p class="text-slate-600 mb-6 leading-relaxed">
+                        Manutenção e suporte especializado para Inversores, Placas Eletrônicas, CLPs, IHMs e Servo Drives. Recuperamos a eficiência da sua linha de produção.
+                    </p>
+                    <a href="https://wa.me/5512996371799?text=Ol%C3%A1%2C%20tenho%20interesse%20em%20manuten%C3%A7%C3%A3o%20de%20eletr%C3%B4nicos%20industriais." target="_blank" class="text-brand-teal font-semibold hover:text-teal-700 flex items-center gap-2">
+                        Falar com Especialista <i class="fa-brands fa-whatsapp text-lg"></i>
+                    </a>
+                </div>
+
+                <!-- Card 2: Fitness -->
+                <div class="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition duration-300 transform hover:-translate-y-2 border-b-4 border-brand-yellow group">
+                    <div class="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-brand-yellow transition">
+                        <i class="fa-solid fa-heart-pulse text-brand-yellow text-3xl group-hover:text-white transition"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-dark mb-4">Equipamentos Fitness</h3>
+                    <p class="text-slate-600 mb-6 leading-relaxed">
+                        Manutenção preventiva e corretiva para esteiras, bicicletas e simuladores. Atendemos academias e condomínios garantindo a segurança dos usuários.
+                    </p>
+                    <a href="https://wa.me/5512996371799?text=Ol%C3%A1%2C%20preciso%20de%20assist%C3%AAncia%20para%20equipamentos%20fitness." target="_blank" class="text-yellow-600 font-semibold hover:text-yellow-800 flex items-center gap-2">
+                        Agendar Visita <i class="fa-brands fa-whatsapp text-lg"></i>
+                    </a>
+                </div>
+
+                <!-- Card 3: Ar Condicionado -->
+                <div class="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition duration-300 transform hover:-translate-y-2 border-b-4 border-slate-400 group">
+                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-6 group-hover:bg-slate-400 transition">
+                        <i class="fa-solid fa-snowflake text-slate-500 text-3xl group-hover:text-white transition"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-dark mb-4">Refrigeração & Clima</h3>
+                    <p class="text-slate-600 mb-6 leading-relaxed">
+                        Reparo avançado e suporte técnico para equipamentos de refrigeração. Especialistas em restauração de placas inverter e unidades condensadoras.
+                    </p>
+                    <a href="https://wa.me/5512996371799?text=Ol%C3%A1%2C%20gostaria%20de%20um%20or%C3%A7amento%20para%20refrigera%C3%A7%C3%A3o." target="_blank" class="text-slate-600 font-semibold hover:text-slate-800 flex items-center gap-2">
+                        Solicitar Suporte <i class="fa-brands fa-whatsapp text-lg"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sobre / Missão Visão Valores -->
+    <section id="sobre" class="scroll-mt-32 py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                
+                <!-- Imagem Ilustrativa -->
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-24 h-24 bg-brand-yellow/20 rounded-full z-0"></div>
+                    <img 
+                        src="/static/qualidade.jpg" 
+                        alt="Automação Industrial e Controle de Qualidade" 
+                        class="relative z-10 rounded-2xl shadow-2xl h-full w-full object-cover max-h-[500px]"
+                    >
+                </div>
+
+                <!-- Conteúdo -->
+                <div>
+                    <h2 class="text-3xl font-bold text-brand-dark mb-6">Compromisso com a Qualidade</h2>
+                    <p class="text-slate-600 mb-8 text-lg">
+                        A Control Brasil é referência na implementação de sistemas de automação e reparos de alta complexidade. Nossa infraestrutura nos permite atender demandas de diversas regiões com a mesma eficiência.
+                    </p>
+
+                    <div class="space-y-6">
+                        <div class="flex gap-4">
+                            <div class="flex-shrink-0 mt-1">
+                                <i class="fa-solid fa-bullseye text-brand-teal text-xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-brand-dark">Missão</h4>
+                                <p class="text-slate-600 text-sm">Solucionar problemas com excelência, transparência e agilidade, garantindo a produtividade das operações dos nossos clientes.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-4">
+                            <div class="flex-shrink-0 mt-1">
+                                <i class="fa-regular fa-eye text-brand-teal text-xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-brand-dark">Visão</h4>
+                                <p class="text-slate-600 text-sm">Ser referência nacional pela seriedade e solidez em manutenção e automação industrial.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-4">
+                            <div class="flex-shrink-0 mt-1">
+                                <i class="fa-solid fa-gem text-brand-teal text-xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-brand-dark">Valores</h4>
+                                <p class="text-slate-600 text-sm">Eficiência, comprometimento, organização e segurança para clientes e colaboradores.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contato -->
+    <section id="contato" class="scroll-mt-32 bg-brand-dark py-24 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                
+                <div>
+                    <h2 class="text-3xl font-bold mb-6">Fale Conosco</h2>
+                    <p class="text-slate-400 mb-8">Estamos prontos para atender sua empresa. Entre em contato para agendar uma visita técnica ou solicitar um orçamento.</p>
+                    
+                    <div class="space-y-6">
+                        <!-- Botão Grande WhatsApp -->
+                        <a href="https://wa.me/5512996371799?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20um%20atendente." target="_blank" class="flex items-center gap-4 group p-4 bg-white/5 rounded-xl hover:bg-white/10 transition border border-transparent hover:border-brand-teal cursor-pointer">
+                            <div class="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition">
+                                <i class="fa-brands fa-whatsapp text-2xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-400">WhatsApp Comercial</p>
+                                <p class="text-xl font-bold text-white group-hover:text-brand-teal transition">(12) 99637-1799</p>
+                                <p class="text-xs text-brand-teal mt-1">Clique para iniciar uma conversa</p>
+                            </div>
+                        </a>
+
+                        <div class="flex items-center gap-4 pl-4">
+                            <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-brand-teal">
+                                <i class="fa-solid fa-location-dot text-xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-400">Endereço da Matriz</p>
+                                <p class="font-medium">Rua Francisco Paes, 229 - Centro</p>
+                                <p class="text-sm">São José dos Campos - SP</p>
+                            </div>
+                        </div>
+
+                        <div class="pt-6 pl-4">
+                            <h4 class="text-sm uppercase text-slate-400 tracking-wider mb-4">Redes Sociais</h4>
+                            <div class="flex gap-4">
+                                <a href="#" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-brand-teal transition hover:text-white">
+                                    <i class="fa-brands fa-facebook-f"></i>
+                                </a>
+                                <a href="#" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-brand-teal transition hover:text-white">
+                                    <i class="fa-brands fa-instagram"></i>
+                                </a>
+                                <a href="#" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-brand-teal transition hover:text-white">
+                                    <i class="fa-brands fa-linkedin-in"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulário Simplificado -->
+                <div class="bg-white text-slate-800 p-8 rounded-2xl shadow-xl">
+                    <h3 class="text-2xl font-bold text-brand-dark mb-6">Envie uma mensagem</h3>
+                    <form id="contact-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Nome</label>
+                            <input type="text" id="form-name" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none transition" placeholder="Seu nome ou da empresa" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                            <input type="email" id="form-email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none transition" placeholder="seu@email.com" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Assunto</label>
+                            <select id="form-subject" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none transition">
+                                <option>Manutenção Industrial</option>
+                                <option>Equipamentos Fitness</option>
+                                <option>Ar Condicionado / Refrigeração</option>
+                                <option>Outros</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Mensagem</label>
+                            <textarea id="form-message" rows="4" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none transition" placeholder="Descreva sua necessidade..." required></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-brand-teal text-white font-bold py-3 rounded-lg hover:bg-teal-700 transition shadow-lg flex justify-center items-center gap-2">
+                            Enviar para WhatsApp <i class="fa-brands fa-whatsapp"></i>
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-black text-slate-400 py-8 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-sm text-center md:text-left">
+                <p>&copy; 2023 Control Brasil – Todos os direitos reservados.</p>
+                <p class="text-xs mt-1">CNPJ: 50.876.737/0001-40</p>
+            </div>
+            <div class="flex gap-6 text-sm font-medium">
+                <a href="#home" class="hover:text-white transition">Home</a>
+                <a href="/store" class="text-brand-teal hover:text-white transition">Loja</a>
+                <a href="#" class="hover:text-white transition">Política de Privacidade</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Cookie Banner -->
+    <div id="cookie-banner" class="fixed bottom-0 left-0 right-0 bg-white p-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 transform translate-y-full transition-transform duration-500 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-slate-200">
+        <div class="text-sm text-slate-600 max-w-4xl">
+            <p><span class="font-bold text-brand-blue">Este site utiliza cookies.</span> Utilizamos cookies para analisar o tráfego do site e otimizar sua experiência. Ao aceitar nosso uso de cookies, seus dados serão agregados com os dados de todos os outros usuários.</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="acceptCookies()" class="bg-brand-blue text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-800 transition">
+                Aceitar
+            </button>
+            <button onclick="hideCookies()" class="text-slate-500 hover:text-slate-800 text-sm font-medium px-4">
+                Fechar
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts JavaScript -->
+    <script>
+        // Menu Mobile Toggle
+        const btnMobile = document.getElementById('mobile-menu-btn');
+        const menuMobile = document.getElementById('mobile-menu');
+
+        btnMobile.addEventListener('click', () => {
+            menuMobile.classList.toggle('hidden');
+        });
+
+        // Fechar menu mobile ao clicar em um link
+        document.querySelectorAll('#mobile-menu a').forEach(link => {
+            link.addEventListener('click', () => {
+                menuMobile.classList.add('hidden');
+            });
+        });
+
+        // Efeito de Scroll na Navbar (Muda cor ao rolar)
+        window.addEventListener('scroll', () => {
+            const navbar = document.getElementById('navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('shadow-md', 'bg-white/95');
+                navbar.classList.remove('shadow-none');
+            } else {
+                navbar.classList.add('bg-white/95'); // Mantém background para legibilidade
+            }
+        });
+
+        // Lógica de Cookies
+        const cookieBanner = document.getElementById('cookie-banner');
+        
+        function showCookies() {
+            if (!localStorage.getItem('cookiesAccepted')) {
+                setTimeout(() => {
+                    cookieBanner.classList.remove('translate-y-full');
+                }, 1000);
+            }
+        }
+
+        function acceptCookies() {
+            localStorage.setItem('cookiesAccepted', 'true');
+            hideCookies();
+        }
+
+        function hideCookies() {
+            cookieBanner.classList.add('translate-y-full');
+        }
+
+        // Inicializar
+        window.onload = showCookies;
+
+        // Animação de entrada dos elementos ao rolar (Scroll Reveal Simples)
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if(entry.isIntersecting) {
+                    entry.target.classList.add('fade-in');
+                }
+            });
+        });
+
+        document.querySelectorAll('section h2').forEach((el) => observer.observe(el));
+
+        // Lógica de Envio do Formulário para WhatsApp
+        document.getElementById('contact-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('form-name').value;
+            const email = document.getElementById('form-email').value;
+            const subject = document.getElementById('form-subject').value;
+            const message = document.getElementById('form-message').value;
+
+            // Formatar a mensagem para o WhatsApp
+            const text = `*Nova Mensagem via Site*%0A%0A*Nome:* ${name}%0A*Email:* ${email}%0A*Assunto:* ${subject}%0A*Mensagem:* ${message}`;
+            
+            // Abrir WhatsApp Web/App
+            window.open(`https://wa.me/5512996371799?text=${text}`, '_blank');
+        });
+    </script>
+</body>
+</html>

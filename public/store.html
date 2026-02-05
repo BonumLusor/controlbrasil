@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loja Online - Control Brasil</title>
+    <meta name="description" content="Catálogo de equipamentos industriais, inversores, CLPs e peças de reposição.">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="icon" href="favicon.ico" type="ico.png">
+
+    <!-- Configurações Personalizadas do Tailwind (Mesmo padrão da Home) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#333333',    // Cinza escuro da logo
+                            teal: '#00C2A8',    // Verde/Teal da logo
+                            yellow: '#FFCC00',  // Amarelo da logo
+                            gray: '#f3f4f6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        .fade-in { animation: fadeIn 0.8s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="font-sans text-slate-800 antialiased bg-slate-50 flex flex-col min-h-screen">
+
+    <!-- Navbar -->
+    <nav class="fixed w-full z-50 bg-white/95 backdrop-blur-sm shadow-md transition-all duration-300" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-24">
+                <!-- Logo -->
+                <div class="flex-shrink-0 flex items-center cursor-pointer" onclick="window.location.href='index.html'">
+                    <img src="logo.png" alt="Control Brasil Logo" class="h-16 w-auto object-contain">
+                </div>
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex space-x-8 items-center">
+                    <a href="index.html" class="text-slate-600 hover:text-brand-teal font-medium transition">Home</a>
+                    <a href="index.html#servicos" class="text-slate-600 hover:text-brand-teal font-medium transition">Soluções</a>
+                    <a href="index.html#contato" class="text-slate-600 hover:text-brand-teal font-medium transition">Contato</a>
+                    
+                    <!-- Botão Loja Ativo -->
+                    <a href="#" class="bg-brand-teal text-white px-5 py-2.5 rounded-full font-semibold shadow-lg flex items-center gap-2 ring-2 ring-brand-teal ring-offset-2">
+                        <i class="fa-solid fa-cart-shopping"></i>
+                        Loja Online
+                    </a>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-btn" class="text-slate-600 hover:text-brand-teal focus:outline-none">
+                        <i class="fa-solid fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Panel -->
+        <div class="md:hidden hidden bg-white border-t" id="mobile-menu">
+            <div class="px-4 pt-2 pb-4 space-y-1 shadow-lg">
+                <a href="index.html" class="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-brand-teal hover:bg-slate-50">Home</a>
+                <a href="index.html#servicos" class="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-brand-teal hover:bg-slate-50">Soluções</a>
+                <a href="#" class="block w-full text-center mt-4 px-3 py-3 rounded-md text-base font-bold bg-brand-teal text-white">
+                    <i class="fa-solid fa-cart-shopping mr-2"></i> Loja Online
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header da Loja -->
+    <header class="bg-brand-dark pt-32 pb-16 text-white text-center shadow-xl">
+        <div class="max-w-7xl mx-auto px-4">
+            <h1 class="text-3xl md:text-5xl font-bold mb-4">Catálogo de Equipamentos</h1>
+            <p class="text-slate-300 max-w-2xl mx-auto text-lg">
+                Encontre inversores, CLPs, IHMs e peças de reposição com garantia e qualidade Control Brasil.
+            </p>
+        </div>
+    </header>
+
+    <!-- Filtros e Busca (Opcional visualmente) -->
+    <div class="max-w-7xl mx-auto px-4 -mt-8 relative z-10">
+        <div class="bg-white p-4 rounded-xl shadow-lg flex flex-col md:flex-row gap-4 items-center justify-between border-b-4 border-brand-yellow">
+            <div class="flex items-center gap-2 text-slate-600 font-semibold">
+                <i class="fa-solid fa-filter text-brand-teal"></i> Filtros
+            </div>
+            <div class="relative w-full md:w-96">
+                <input type="text" id="search-input" placeholder="Buscar produto, SKU ou modelo..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition">
+                <i class="fa-solid fa-search absolute left-3 top-3 text-slate-400"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Produtos -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 py-12 w-full">
+        
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-20">
+            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-brand-teal"></i>
+            <p class="mt-4 text-slate-500">Carregando produtos...</p>
+        </div>
+
+        <!-- Grid de Produtos -->
+        <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 hidden fade-in">
+            <!-- Os produtos serão inseridos aqui via JavaScript -->
+        </div>
+
+        <!-- Empty State (Hidden by default) -->
+        <div id="empty-state" class="hidden text-center py-20">
+            <i class="fa-solid fa-box-open text-6xl text-slate-300 mb-4"></i>
+            <p class="text-xl text-slate-600 font-medium">Nenhum produto encontrado.</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black text-slate-400 py-8 border-t border-slate-800 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-sm text-center md:text-left">
+                <p>&copy; 2023 Control Brasil – Todos os direitos reservados.</p>
+                <p class="text-xs mt-1">CNPJ: 50.876.737/0001-40</p>
+            </div>
+            <div class="flex gap-6 text-sm font-medium">
+                <a href="index.html" class="hover:text-white transition">Home</a>
+                <a href="#" class="text-brand-teal hover:text-white transition">Loja</a>
+                <a href="index.html#contato" class="hover:text-white transition">Fale Conosco</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript para API e Renderização -->
+    <script>
+        // Dados Mockados para Fallback (Caso a API não esteja rodando localmente)
+        const mockProducts = [];
+        // Função para formatar preço BRL
+        const formatPrice = (price) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+        };
+
+        // Função para renderizar os produtos
+        const renderProducts = (products) => {
+            const grid = document.getElementById('products-grid');
+            const loading = document.getElementById('loading');
+            const emptyState = document.getElementById('empty-state');
+            
+            loading.classList.add('hidden');
+            grid.innerHTML = '';
+
+            if (!products || products.length === 0) {
+                emptyState.classList.remove('hidden');
+                grid.classList.add('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.classList.remove('hidden');
+
+            products.forEach(product => {
+                if (!product.active) return; // Exibe apenas produtos ativos
+
+                // Prepara mensagem do WhatsApp
+                const whatsappText = encodeURIComponent(
+                    `Olá, tenho interesse no produto:\n*${product.name}*\nSKU: ${product.sku || 'N/A'}\nPreço: ${formatPrice(product.price)}`
+                );
+                const whatsappLink = `https://wa.me/5512996371799?text=${whatsappText}`;
+
+                // Verifica estoque
+                const stockBadge = product.quantity > 0 
+                    ? `<span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full absolute top-3 right-3 shadow-sm">Em Estoque (${product.quantity})</span>`
+                    : `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full absolute top-3 right-3 shadow-sm">Indisponível</span>`;
+
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 overflow-hidden flex flex-col group border border-slate-100";
+                
+                card.innerHTML = `
+                    <div class="relative h-56 overflow-hidden bg-slate-100">
+                        <img src="https://sistema.controlbrasilsjc.com.br${product.imageUrl}" alt="${product.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" onerror="this.src='https://via.placeholder.com/400x300?text=Sem+Imagem'">
+                        ${stockBadge}
+                        <div class="absolute bottom-0 left-0 bg-brand-yellow text-brand-dark text-xs font-bold px-3 py-1 rounded-tr-lg">
+                            SKU: ${product.sku || 'N/A'}
+                        </div>
+                    </div>
+                    <div class="p-6 flex flex-col flex-grow">
+                        <h3 class="text-lg font-bold text-brand-dark mb-2 line-clamp-2 min-h-[3.5rem]">${product.name}</h3>
+                        <p class="text-slate-500 text-sm mb-4 line-clamp-3 flex-grow">${product.description || 'Sem descrição.'}</p>
+                        
+                        <div class="mt-auto pt-4 border-t border-slate-100">
+                            <div class="flex justify-between items-end mb-4">
+                                <span class="text-xs text-slate-400">Preço Unitário</span>
+                                <span class="text-2xl font-bold text-brand-teal">${formatPrice(product.price)}</span>
+                            </div>
+                            
+                            <a href="${whatsappLink}" target="_blank" class="w-full bg-brand-dark text-white font-bold py-3 rounded-lg hover:bg-brand-teal transition shadow-md flex items-center justify-center gap-2 group-hover:bg-brand-teal">
+                                <i class="fa-brands fa-whatsapp text-lg"></i> Tenho Interesse
+                            </a>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        };
+
+        // Função Principal de Carregamento
+        async function loadProducts() {
+            try {
+                // Tenta buscar da API Real
+                // Adicionando um timeout curto para não travar se a API não existir (ambiente local)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 segundos timeout
+
+                const response = await fetch('/api.php', { signal: controller.signal });
+                const data = await response.json();
+                
+                if (data.sucesso && Array.isArray(data.dados)) {
+                    renderProducts(data.dados);
+                } else {
+                    throw new Error("Formato de dados inválido");
+                }
+            } catch (error) {
+                console.warn("API não disponível ou erro de conexão. Usando dados de exemplo.", error);
+                // Fallback para dados mockados se a API falhar
+                renderProducts(mockProducts);
+            }
+        }
+
+        // Busca (Filtragem local nos dados já carregados)
+        const searchInput = document.getElementById('search-input');
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const cards = document.querySelectorAll('#products-grid > div');
+            
+            cards.forEach(card => {
+                const title = card.querySelector('h3').innerText.toLowerCase();
+                const sku = card.querySelector('.bg-brand-yellow').innerText.toLowerCase();
+                
+                if (title.includes(term) || sku.includes(term)) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+        });
+
+        // Mobile Menu Logic (Igual ao Index)
+        const btnMobile = document.getElementById('mobile-menu-btn');
+        const menuMobile = document.getElementById('mobile-menu');
+
+        btnMobile.addEventListener('click', () => {
+            menuMobile.classList.toggle('hidden');
+        });
+
+        // Iniciar
+        window.onload = loadProducts;
+    </script>
+</body>
+</html>

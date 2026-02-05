@@ -217,9 +217,10 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
       <Text style={styles.sectionTitle}>Dados do Cliente</Text>
       <View style={styles.box}>
         <View style={styles.row}>
+          {/* Restaurado: Campo Responsável */}
           <View style={[styles.col, { width: '60%' }]}>
             <Text style={styles.label}>Cliente / Empresa:</Text>
-            <Text style={styles.value}>{customer?.name || '-'}</Text>
+            <Text style={styles.value}>{customer?.company || customer?.name || '-'}</Text>
           </View>
           <View style={[styles.col, { width: '40%' }]}>
             <Text style={styles.label}>Responsável:</Text>
@@ -257,7 +258,7 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
          <View style={[styles.row, { borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 5, marginBottom: 5 }]}>
             <View style={[styles.col, { width: '30%' }]}>
                <Text style={styles.labelBold}>Equipamento:</Text>
-               <Text style={styles.value}>{order.equipment || order.equipmentDescription || '-'}</Text>
+               <Text style={styles.value}>{order.equipment || '-'}</Text>
             </View>
             <View style={[styles.col, { width: '25%' }]}>
                <Text style={styles.labelBold}>Marca:</Text>
@@ -273,24 +274,32 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
             </View>
          </View>
 
-         {/* Descrições detalhadas */}
+         {/* Descrições detalhadas - Defeito */}
          <View style={styles.row}>
             <View style={[styles.col, { width: '100%', marginBottom: 5 }]}>
                <Text style={styles.labelBold}>Defeito Relatado:</Text>
                <Text style={styles.value}>{order.reportedIssue || '-'}</Text>
             </View>
          </View>
+         
+         {/* Nova Linha: Descrição do Serviço */}
+         <View style={styles.row}>
+            <View style={[styles.col, { width: '100%', marginBottom: 5 }]}>
+               <Text style={styles.labelBold}>Descrição do Serviço:</Text>
+               <Text style={styles.value}>{order.equipmentDescription || '-'}</Text>
+            </View>
+         </View>
+
       </View>
 
       {/* --- ITENS E SERVIÇOS (COM LISTAGEM DE COMPONENTES) --- */}
       <Text style={styles.sectionTitle}>Peças e Serviços Executados</Text>
       <View style={styles.table}>
         <View style={styles.tableRow}>
-          <View style={[styles.tableColHeader, { width: '10%' }]}><Text style={styles.tableCellHeader}>#</Text></View>
           <View style={[styles.tableColHeader, { width: '50%' }]}><Text style={styles.tableCellHeader}>Descrição do Item / Serviço</Text></View>
           <View style={[styles.tableColHeader, { width: '10%' }]}><Text style={styles.tableCellHeader}>Qtd</Text></View>
-          <View style={[styles.tableColHeader, { width: '15%' }]}><Text style={styles.tableCellHeader}>V. Unit</Text></View>
-          <View style={[styles.tableColHeader, { width: '15%' }]}><Text style={styles.tableCellHeader}>Total</Text></View>
+          <View style={[styles.tableColHeader, { width: '20%' }]}><Text style={styles.tableCellHeader}>V. Unit</Text></View>
+          <View style={[styles.tableColHeader, { width: '20%' }]}><Text style={styles.tableCellHeader}>Total</Text></View>
         </View>
 
         {/* Lista de Componentes/Peças */}
@@ -323,7 +332,6 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
             <Text style={styles.totalValue}>{formatCurrency(order.laborCost)}</Text>
           </View>
           
-          {/* ALTERAÇÃO: Removido 'Total Peças' e adicionado 'Impostos' */}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Impostos:</Text>
             <Text style={styles.totalValue}>{formatCurrency((order.laborCost * 0.06) || 0)}</Text>
@@ -348,7 +356,7 @@ export const ServiceOrderPDF = ({ order, customer, technician }: PDFProps) => (
       <View style={styles.signaturesContainer}>
         <View style={styles.signatureBox}>
           <Text style={styles.label}>Aprovação / Recebimento do Cliente</Text>
-          <Text style={{ marginTop: 20, fontSize: 8 }}>{customer?.name || 'Cliente'}</Text>
+          <Text style={{ marginTop: 20, fontSize: 8 }}>{customer?.company || customer?.name || 'Cliente'}</Text>
           <Text style={{ fontSize: 7, color: '#999' }}>CPF/CNPJ: {customer?.cpfCnpj}</Text>
         </View>
         <View style={styles.signatureBox}>
