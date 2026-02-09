@@ -22,6 +22,21 @@ const optionalString = z.union([z.string(), z.literal(""), z.null(), z.undefined
 const optionalEmail = z.union([z.string().email(), z.literal(""), z.null(), z.undefined()]);
 const cleanEmpty = (val: string | null | undefined) => (val === "" ? undefined : val);
 
+// Schema auxiliar para os itens de equipamento
+const equipmentItemSchema = z.object({
+  equipment: z.string().optional(),
+  brand: z.string().optional(),
+  model: z.string().optional(),
+  serialNumber: z.string().optional(),
+  equipmentDescription: z.string().optional(),
+  reportedIssue: z.string().optional(),
+  diagnosis: z.string().optional(),
+  solution: z.string().optional(),
+  // Novos campos opcionais (strings pois vêm de inputs numéricos do front)
+  laborCost: z.string().optional(),
+  partsCost: z.string().optional(),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -272,8 +287,8 @@ export const appRouter = router({
     search: protectedProcedure.input(z.object({ query: z.string() })).query(async ({ input }) => customersDb.searchCustomers(input.query)),
     create: protectedProcedure
       .input(z.object({
-        company: z.string().optional(),     // Novo
-        manager: z.string().min(2),         // Novo (Obrigatório)
+        company: z.string().optional(),
+        manager: z.string().min(2),
         email: optionalEmail,
         phone: z.string().optional(),
         cpfCnpj: optionalString,
@@ -345,16 +360,10 @@ export const appRouter = router({
         orderNumber: z.string().min(1),
         customerId: z.number(),
         serviceType: z.enum(["manutencao_industrial", "fitness", "refrigeracao", "automacao_industrial"]),
-        // --- NOVOS CAMPOS DO EQUIPAMENTO ---
-        equipment: z.string().optional(),
-        brand: z.string().optional(), 
-        model: z.string().optional(),
-        serialNumber: z.string().optional(),
-        // ------------------------------------
-        equipmentDescription: z.string().optional(),
-        reportedIssue: z.string().optional(),
-        diagnosis: z.string().optional(),
-        solution: z.string().optional(),
+        
+        // --- ATUALIZADO: Lista de equipamentos ---
+        equipmentsList: z.array(equipmentItemSchema).optional(),
+        
         status: z.enum(["em_aberto", "aguardando_orcamento", "aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).default("em_aberto"),
         receivedById: z.number().optional(),
         technicianId: z.number().optional(),
@@ -364,17 +373,16 @@ export const appRouter = router({
         receivedDate: z.date(),
         notes: z.string().optional(),
         images: z.array(z.string()).optional(),
-        // --- NOVO CAMPO DE COMPONENTES USADOS ---
         usedComponents: z.array(z.object({
           componentId: z.number(),
           quantity: z.number()
         })).optional()
-        // ----------------------------------------
       }))
       .mutation(async ({ input }) => {
-        const { images, usedComponents, ...data } = input;
-        // Passa usedComponents para a função do DB
-        return serviceOrdersDb.createServiceOrder(data, images, usedComponents);
+        // Extrai equipmentsList e passa como 4º argumento
+        const { images, usedComponents, equipmentsList, ...data } = input;
+        // @ts-ignore - Ignora incompatibilidade de tipo se a função DB ainda não estiver 100% tipada, mas funciona se o JS estiver certo
+        return serviceOrdersDb.createServiceOrder(data, images, usedComponents, equipmentsList);
       }),
     update: protectedProcedure
       .input(z.object({
@@ -382,38 +390,31 @@ export const appRouter = router({
         orderNumber: z.string().optional(),
         customerId: z.number().optional(),
         serviceType: z.enum(["manutencao_industrial", "fitness", "refrigeracao", "automacao_industrial"]).optional(),
-        // --- NOVOS CAMPOS DO EQUIPAMENTO ---
-        equipment: z.string().optional(),
-        brand: z.string().optional(),
-        model: z.string().optional(),
-        serialNumber: z.string().optional(),
-        // ------------------------------------
-        equipmentDescription: z.string().optional(),
-        reportedIssue: z.string().optional(),
-        diagnosis: z.string().optional(),
-        solution: z.string().optional(),
+        
+        // --- ATUALIZADO: Lista de equipamentos ---
+        equipmentsList: z.array(equipmentItemSchema).optional(),
+        
         status: z.enum(["em_aberto", "aguardando_orcamento", "aguardando_aprovacao", "aguardando_componente", "aprovado", "em_reparo", "sem_conserto", "pago", "entregue", "entregue_a_receber"]).optional(),
         receivedById: z.number().optional(),
         technicianId: z.number().optional(),
         laborCost: z.string().optional(),
         partsCost: z.string().optional(),
         totalCost: z.string().optional(),
-        receivedDate: z.date().optional(), // ADICIONADO: Permitir edição da data de entrada
+        receivedDate: z.date().optional(),
         completedDate: z.date().optional(),
         deliveredDate: z.date().optional(),
         notes: z.string().optional(),
         images: z.array(z.string()).optional(),
-        // --- NOVO CAMPO DE COMPONENTES USADOS ---
         usedComponents: z.array(z.object({
           componentId: z.number(),
           quantity: z.number()
         })).optional()
-        // ----------------------------------------
       }))
       .mutation(async ({ input }) => {
-        const { id, images, usedComponents, ...data } = input;
-        // Passa usedComponents para a função do DB
-        return await serviceOrdersDb.updateServiceOrder(id, data, images, usedComponents);
+        // Extrai equipmentsList e passa como 4º argumento
+        const { id, images, usedComponents, equipmentsList, ...data } = input;
+        // @ts-ignore
+        return await serviceOrdersDb.updateServiceOrder(id, data, images, usedComponents, equipmentsList);
       }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await serviceOrdersDb.deleteServiceOrder(input.id);

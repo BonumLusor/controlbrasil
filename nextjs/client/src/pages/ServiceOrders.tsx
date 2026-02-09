@@ -41,12 +41,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-// Tipos atualizados para corresponder às opções (ServiceTypes e StatusOptions)
-type ServiceOrderFormData = {
-  id?: number;
-  orderNumber: string;
-  customerId: number;
-  serviceType: "manutencao_industrial" | "fitness" | "refrigeracao" | "automacao_industrial";
+// --- TIPOS ---
+
+type EquipmentItem = {
   equipment: string;
   brand: string;
   model: string;
@@ -55,6 +52,18 @@ type ServiceOrderFormData = {
   reportedIssue: string;
   diagnosis: string;
   solution: string;
+  laborCost: string;
+  partsCost: string;
+};
+
+type ServiceOrderFormData = {
+  id?: number;
+  orderNumber: string;
+  customerId: number;
+  serviceType: "manutencao_industrial" | "fitness" | "refrigeracao" | "automacao_industrial";
+  
+  equipments: EquipmentItem[];
+
   status: "em_aberto" | "aguardando_orcamento" | "aguardando_aprovacao" | "aguardando_componente" | "aprovado" | "em_reparo" | "sem_conserto" | "pago" | "entregue" | "entregue_a_receber";
   receivedById: number;
   technicianId: number;
@@ -67,10 +76,7 @@ type ServiceOrderFormData = {
   usedComponents: { componentId: number; quantity: number }[];
 };
 
-const initialFormData: ServiceOrderFormData = {
-  orderNumber: "",
-  customerId: 0,
-  serviceType: "manutencao_industrial",
+const initialEquipment: EquipmentItem = {
   equipment: "",
   brand: "",
   model: "",
@@ -79,6 +85,17 @@ const initialFormData: ServiceOrderFormData = {
   reportedIssue: "",
   diagnosis: "",
   solution: "",
+  laborCost: "0.00",
+  partsCost: "0.00"
+};
+
+const initialFormData: ServiceOrderFormData = {
+  orderNumber: "",
+  customerId: 0,
+  serviceType: "manutencao_industrial",
+  
+  equipments: [{ ...initialEquipment }],
+
   status: "em_aberto",
   receivedById: 0,
   technicianId: 0,
@@ -120,7 +137,6 @@ export default function ServiceOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
 
-  // Estados locais para seleção de componente na modal
   const [selectedComponentId, setSelectedComponentId] = useState<string>("");
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
 
@@ -172,7 +188,64 @@ export default function ServiceOrders() {
     },
   });
 
+  // --- Lógica de Equipamentos ---
+
+  const handleAddEquipment = () => {
+    setFormData(prev => ({
+      ...prev,
+      equipments: [...prev.equipments, { ...initialEquipment }]
+    }));
+  };
+
+  const handleRemoveEquipment = (index: number) => {
+    if (formData.equipments.length <= 1) return;
+    
+    const newEquipments = formData.equipments.filter((_, i) => i !== index);
+    
+    // Recalcula totais ao remover
+    let totalLabor = 0;
+    let totalParts = 0;
+    newEquipments.forEach(item => {
+        totalLabor += parseFloat(item.laborCost || "0");
+        totalParts += parseFloat(item.partsCost || "0");
+    });
+
+    setFormData(prev => ({
+      ...prev,
+      equipments: newEquipments,
+      laborCost: totalLabor.toFixed(2),
+      partsCost: totalParts.toFixed(2)
+    }));
+  };
+
+  const updateEquipment = (index: number, field: keyof EquipmentItem, value: string) => {
+    setFormData(prev => {
+      const newEquipments = [...prev.equipments];
+      newEquipments[index] = { ...newEquipments[index], [field]: value };
+
+      // Se alterou preço, recalcula o total geral
+      if (field === 'laborCost' || field === 'partsCost') {
+        let totalLabor = 0;
+        let totalParts = 0;
+        newEquipments.forEach(item => {
+            totalLabor += parseFloat(item.laborCost || "0");
+            totalParts += parseFloat(item.partsCost || "0");
+        });
+        
+        return { 
+            ...prev, 
+            equipments: newEquipments,
+            laborCost: totalLabor.toFixed(2),
+            partsCost: totalParts.toFixed(2)
+        };
+      }
+
+      return { ...prev, equipments: newEquipments };
+    });
+  };
+
   // --- Lógica de Componentes ---
+
   const handleAddComponent = () => {
     if (!selectedComponentId || selectedQuantity <= 0) return;
     const compId = parseInt(selectedComponentId);
@@ -203,13 +276,11 @@ export default function ServiceOrders() {
       usedComponents: prev.usedComponents.filter(c => c.componentId !== compId)
     }));
   };
-  // -----------------------------
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       const reader = new FileReader();
-
       const toastId = toast.loading("Enviando imagem...");
 
       reader.onload = async (event) => {
@@ -249,16 +320,24 @@ export default function ServiceOrders() {
 
     const labor = parseFloat(formData.laborCost) || 0;
     const parts = parseFloat(formData.partsCost) || 0;
-    const taxValue = labor * 0.06; // Imposto de 6% sobre mão de obra
-    
-    // Total = Mão de Obra + Peças + Imposto
+    const taxValue = labor * 0.06;
     const totalCost = (labor + parts + taxValue).toFixed(2);
 
+    const payload = {
+        ...formData,
+        customerId: isNaN(formData.customerId) ? 0 : formData.customerId,
+        totalCost,
+        receivedDate: formData.receivedDate || new Date(),
+        equipmentsList: formData.equipments
+    };
+
     if (isEditing && formData.id) {
-      updateMutation.mutate({ ...formData, totalCost, id: formData.id, receivedDate: formData.receivedDate || new Date() });
+        // @ts-ignore
+        updateMutation.mutate({ ...payload, id: formData.id });
     } else {
-      const { id, ...data } = formData;
-      createMutation.mutate({ ...data, totalCost, receivedDate: data.receivedDate || new Date() });
+        const { id, ...data } = payload;
+        // @ts-ignore
+        createMutation.mutate(data);
     }
   };
 
@@ -270,19 +349,30 @@ export default function ServiceOrders() {
       const fullOrder = await utils.serviceOrders.getById.fetch({ id: order.id });
 
       if (fullOrder) {
+        // CORREÇÃO: Mapeia explicitamente para garantir tipos string não nulos
+        const mappedEquipments: EquipmentItem[] = fullOrder.equipments && fullOrder.equipments.length > 0 
+          ? fullOrder.equipments.map((eq: any) => ({
+              equipment: eq.equipment || "",
+              brand: eq.brand || "",
+              model: eq.model || "",
+              serialNumber: eq.serialNumber || "",
+              equipmentDescription: eq.equipmentDescription || "",
+              reportedIssue: eq.reportedIssue || "",
+              diagnosis: eq.diagnosis || "",
+              solution: eq.solution || "",
+              laborCost: eq.laborCost ? eq.laborCost.toString() : "0.00",
+              partsCost: eq.partsCost ? eq.partsCost.toString() : "0.00"
+            })) 
+          : [{ ...initialEquipment }];
+
         setFormData({
           id: fullOrder.id,
           orderNumber: fullOrder.orderNumber || "",
-          customerId: fullOrder.customerId || 0,
+          customerId: typeof fullOrder.customerId === 'number' ? fullOrder.customerId : 0,
           serviceType: (fullOrder.serviceType as any) || "manutencao_industrial",
-          equipment: fullOrder.equipment || "",
-          brand: fullOrder.brand || "",
-          model: fullOrder.model || "",
-          serialNumber: fullOrder.serialNumber || "",
-          equipmentDescription: fullOrder.equipmentDescription || "",
-          reportedIssue: fullOrder.reportedIssue || "",
-          diagnosis: fullOrder.diagnosis || "",
-          solution: fullOrder.solution || "",
+          
+          equipments: mappedEquipments,
+
           status: (fullOrder.status as any) || "em_aberto",
           receivedById: fullOrder.receivedById || 0,
           technicianId: fullOrder.technicianId || 0,
@@ -300,6 +390,7 @@ export default function ServiceOrders() {
       }
     } catch (err) {
       toast.error("Erro ao carregar detalhes da ordem");
+      console.error(err);
     }
   };
 
@@ -354,7 +445,6 @@ export default function ServiceOrders() {
     return employees?.find((e) => e.id === employeeId)?.name || "-";
   };
 
-  // --- LÓGICA DE FILTRAGEM ---
   const filterByDate = (dateStr: string | Date) => {
     if (dateFilter === "all") return true;
     const date = new Date(dateStr);
@@ -398,7 +488,6 @@ export default function ServiceOrders() {
           </Button>
         </div>
 
-        {/* --- FILTROS UI --- */}
         <div className="flex flex-wrap gap-4 items-center bg-muted/20 p-4 rounded-lg border">
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-muted-foreground" />
@@ -469,7 +558,6 @@ export default function ServiceOrders() {
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.orderNumber}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {/* DATA FORMATADA DD/MM/YY */}
                         {new Date(order.receivedDate).toLocaleDateString('pt-BR', {
                           day: '2-digit',
                           month: '2-digit',
@@ -540,7 +628,6 @@ export default function ServiceOrders() {
           </CardContent>
         </Card>
 
-        {/* DIALOG DE NOVA/EDITAR ORDEM */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -553,7 +640,6 @@ export default function ServiceOrders() {
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
-                {/* --- MUDANÇA: Grid de 3 colunas para incluir Data --- */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="orderNumber">Nº Ordem *</Label>
@@ -567,7 +653,6 @@ export default function ServiceOrders() {
                     />
                   </div>
                   
-                  {/* NOVO CAMPO DE DATA COM DATEPICKER CUSTOMIZADO */}
                   <div className="space-y-2 flex flex-col">
                     <Label htmlFor="receivedDate">Data de Entrada</Label>
                     <Popover>
@@ -593,7 +678,6 @@ export default function ServiceOrders() {
                           selected={formData.receivedDate}
                           onSelect={(date) => {
                             if (date) {
-                              // Ajusta para meio-dia para evitar problemas de fuso horário
                               const adjustedDate = new Date(date);
                               adjustedDate.setHours(12, 0, 0, 0);
                               setFormData({ ...formData, receivedDate: adjustedDate });
@@ -609,10 +693,11 @@ export default function ServiceOrders() {
                   <div className="space-y-2">
                     <Label htmlFor="customerId">Cliente *</Label>
                     <Select
-                      value={formData.customerId.toString()}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, customerId: parseInt(value) })
-                      }
+                      value={!isNaN(formData.customerId) && formData.customerId > 0 ? formData.customerId.toString() : ""}
+                      onValueChange={(value) => {
+                        const parsed = parseInt(value);
+                        setFormData({ ...formData, customerId: isNaN(parsed) ? 0 : parsed });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione..." />
@@ -625,46 +710,6 @@ export default function ServiceOrders() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                </div>
-
-                {/* --- SEÇÃO DE EQUIPAMENTO --- */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="equipment">Equipamento</Label>
-                    <Input
-                      id="equipment"
-                      placeholder="Ex: Inversor de Frequência"
-                      value={formData.equipment}
-                      onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="brand">Marca</Label>
-                    <Input
-                      id="brand"
-                      value={formData.brand}
-                      onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                    <Label htmlFor="model">Modelo</Label>
-                    <Input
-                      id="model"
-                      value={formData.model}
-                      onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="serialNumber">Nº de Série</Label>
-                    <Input
-                      id="serialNumber"
-                      value={formData.serialNumber}
-                      onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
-                    />
                   </div>
                 </div>
 
@@ -709,32 +754,123 @@ export default function ServiceOrders() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="equipmentDescription">Descrição do Serviço</Label>
-                  <Textarea
-                    id="equipmentDescription"
-                    value={formData.equipmentDescription}
-                    onChange={(e) =>
-                      setFormData({ ...formData, equipmentDescription: e.target.value })
-                    }
-                    rows={2}
-                  />
+                {/* --- SEÇÃO DE EQUIPAMENTOS --- */}
+                <div className="space-y-4 border-t pt-4 mt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-lg font-semibold">Equipamentos</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddEquipment}>
+                      <Plus className="mr-2 h-4 w-4" /> Adicionar Equipamento
+                    </Button>
+                  </div>
+
+                  {formData.equipments.map((item, index) => (
+                    <Card key={index} className="relative bg-slate-50 dark:bg-slate-900/50">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-2 top-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        onClick={() => handleRemoveEquipment(index)}
+                        disabled={formData.equipments.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      
+                      <CardContent className="pt-6 grid gap-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Equipamento</Label>
+                            <Input
+                              value={item.equipment}
+                              onChange={(e) => updateEquipment(index, "equipment", e.target.value)}
+                              placeholder="Ex: Inversor"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Marca</Label>
+                            <Input
+                              value={item.brand}
+                              onChange={(e) => updateEquipment(index, "brand", e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Modelo</Label>
+                            <Input
+                              value={item.model}
+                              onChange={(e) => updateEquipment(index, "model", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Nº Série</Label>
+                            <Input
+                              value={item.serialNumber}
+                              onChange={(e) => updateEquipment(index, "serialNumber", e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Descrição / Acessórios</Label>
+                          <Textarea
+                            value={item.equipmentDescription}
+                            onChange={(e) => updateEquipment(index, "equipmentDescription", e.target.value)}
+                            rows={2}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Problema Relatado</Label>
+                          <Textarea
+                            value={item.reportedIssue}
+                            onChange={(e) => updateEquipment(index, "reportedIssue", e.target.value)}
+                            rows={2}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                              <Label>Diagnóstico</Label>
+                              <Textarea
+                                value={item.diagnosis}
+                                onChange={(e) => updateEquipment(index, "diagnosis", e.target.value)}
+                                rows={2}
+                              />
+                          </div>
+                          <div className="space-y-2">
+                              <Label>Solução</Label>
+                              <Textarea
+                                value={item.solution}
+                                onChange={(e) => updateEquipment(index, "solution", e.target.value)}
+                                rows={2}
+                              />
+                          </div>
+                        </div>
+
+                         {/* CAMPOS DE CUSTO INDIVIDUAL POR ITEM */}
+                         <div className="grid grid-cols-2 gap-4 mt-2 p-3 bg-white dark:bg-slate-800 rounded border">
+                            <div className="space-y-2">
+                               <Label className="text-xs text-muted-foreground font-semibold">Mão de Obra (Item)</Label>
+                               <div className="relative">
+                                  <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">R$</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    className="pl-8"
+                                    value={item.laborCost}
+                                    onChange={(e) => updateEquipment(index, "laborCost", e.target.value)}
+                                  />
+                               </div>
+                            </div>
+                         </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reportedIssue">Problema Relatado</Label>
-                  <Textarea
-                    id="reportedIssue"
-                    value={formData.reportedIssue}
-                    onChange={(e) =>
-                      setFormData({ ...formData, reportedIssue: e.target.value })
-                    }
-                    rows={2}
-                  />
-                </div>
-
-                {/* --- SEÇÃO DE COMPONENTES --- */}
-                <div className="border rounded-md p-3 bg-slate-50 dark:bg-slate-900/50 mt-2">
+                <div className="border rounded-md p-3 bg-slate-50 dark:bg-slate-900/50 mt-4">
                   <Label className="text-base font-semibold mb-2 block">Peças Utilizadas (Baixa Estoque)</Label>
                   
                   <div className="flex gap-2 items-end mb-4">
@@ -843,10 +979,11 @@ export default function ServiceOrders() {
                   <div className="space-y-2">
                     <Label htmlFor="receivedById">Recebido Por</Label>
                     <Select
-                      value={formData.receivedById.toString()}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, receivedById: parseInt(value) })
-                      }
+                      value={!isNaN(formData.receivedById) ? formData.receivedById.toString() : "0"}
+                      onValueChange={(value) => {
+                        const parsed = parseInt(value);
+                        setFormData({ ...formData, receivedById: isNaN(parsed) ? 0 : parsed });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione..." />
@@ -864,10 +1001,11 @@ export default function ServiceOrders() {
                   <div className="space-y-2">
                     <Label htmlFor="technicianId">Técnico</Label>
                     <Select
-                      value={formData.technicianId.toString()}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, technicianId: parseInt(value) })
-                      }
+                      value={!isNaN(formData.technicianId) ? formData.technicianId.toString() : "0"}
+                      onValueChange={(value) => {
+                        const parsed = parseInt(value);
+                        setFormData({ ...formData, technicianId: isNaN(parsed) ? 0 : parsed });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione..." />
@@ -886,15 +1024,15 @@ export default function ServiceOrders() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="laborCost">Mão de Obra</Label>
+                    <Label htmlFor="laborCost">Total Mão de Obra</Label>
                     <Input
                       id="laborCost"
                       type="number"
                       step="0.01"
                       value={formData.laborCost}
-                      onChange={(e) =>
-                        setFormData({ ...formData, laborCost: e.target.value })
-                      }
+                      readOnly
+                      className="bg-muted"
+                      title="Soma automática dos itens"
                     />
                   </div>
                   <div className="space-y-2">

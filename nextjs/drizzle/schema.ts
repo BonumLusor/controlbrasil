@@ -4,11 +4,11 @@ import { pgTable, serial, text, varchar, timestamp, decimal, boolean, pgEnum, in
 export const roleEnum = pgEnum("role", ["user", "admin"]);
 export const componentTypeEnum = pgEnum("type", ["capacitor", "resistor", "indutor", "mosfet", "ci", "outros"]);
 export const poStatusEnum = pgEnum("status", ["pendente", "aguardando_entrega", "recebido_parcial", "recebido", "cancelado"]);
-// No arquivo schema.ts
+
 export const serviceTypeEnum = pgEnum("serviceType", [
   "manutencao_industrial", 
-  "fitness",             // Alterado (separado)
-  "refrigeracao",        // Alterado (separado)
+  "fitness",
+  "refrigeracao",
   "automacao_industrial"
 ]);
 
@@ -18,9 +18,9 @@ export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   fromDriver: (val: unknown) => val as Buffer,
 });
 
-export const os_status = pgEnum("os_status", [
-  "em_aberto",            // Adicionado
-  "aguardando_orcamento",  // Adicionado
+export const osStatusEnum = pgEnum("os_status", [
+  "em_aberto",
+  "aguardando_orcamento",
   "aguardando_aprovacao",
   "aguardando_componente",
   "aprovado",
@@ -31,18 +31,6 @@ export const os_status = pgEnum("os_status", [
   "entregue_a_receber"
 ]);
 
-export const osStatusEnum = pgEnum("os_status", [
-  "em_aberto",            // Adicionado
-  "aguardando_orcamento",  // Adicionado
-  "aguardando_aprovacao",
-  "aguardando_componente",
-  "aprovado",
-  "em_reparo",
-  "sem_conserto",
-  "pago",
-  "entregue",
-  "entregue_a_receber"
-]);
 // --- TABELAS ---
 
 export const users = pgTable("users", {
@@ -72,13 +60,8 @@ export const employees = pgTable("employees", {
 
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
-  
-  // REMOVIDO: name: varchar("name", { length: 255 }).notNull(),
-  
-  // NOVOS CAMPOS:
-  company: varchar("company", { length: 255 }), // Empresa (Opcional)
-  manager: varchar("manager", { length: 255 }).notNull(), // Responsável (Obrigatório)
-  
+  company: varchar("company", { length: 255 }),
+  manager: varchar("manager", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 50 }),
   cpfCnpj: varchar("cpfCnpj", { length: 20 }).unique(),
@@ -115,28 +98,19 @@ export const products = pgTable("products", {
   quantity: integer("quantity").default(0).notNull(),
   minQuantity: integer("minQuantity").default(0),
   sku: varchar("sku", { length: 100 }).unique(),
-  
-  // Agora usaremos primordialmente este campo para o caminho do arquivo (ex: /uploads/products/imagem.jpg)
   imageUrl: text("imageUrl"),
-  
   active: boolean("active").default(true).notNull(), 
-  
-  // Campo image (bytea) mantido apenas para compatibilidade legada ou pode ser removido
-  // image: bytea("image"), 
-
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
+
 export const saleStatusEnum = pgEnum("sale_status_enum", ["concluido", "cancelado", "devolvido"]);
 
 export const sales = pgTable("sales", {
   id: serial("id").primaryKey(),
   customerId: integer("customerId").references(() => customers.id),
   totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }).notNull(),
-  
-  // ATUALIZE ESTA COLUNA para usar o Enum
   status: saleStatusEnum("status").default("concluido"),
-  
   paymentMethod: varchar("paymentMethod", { length: 50 }),
   notes: text("notes"),
   saleDate: timestamp("saleDate").defaultNow().notNull(),
@@ -184,16 +158,9 @@ export const serviceOrders = pgTable("serviceOrders", {
   customerId: integer("customerId").notNull(),
   serviceType: serviceTypeEnum("serviceType").notNull(),
   
-  // Novos campos solicitados
-  equipment: varchar("equipment", { length: 255 }), // Nome do Equipamento
-  brand: varchar("brand", { length: 255 }),         // Marca
-  model: varchar("model", { length: 255 }),         // Modelo
-  serialNumber: varchar("serialNumber", { length: 255 }), // Número de Série
+  // CAMPOS REMOVIDOS DAQUI (foram para serviceOrderEquipments):
+  // equipment, brand, model, serialNumber, equipmentDescription, reportedIssue, diagnosis, solution
 
-  equipmentDescription: text("equipmentDescription"),
-  reportedIssue: text("reportedIssue"),
-  diagnosis: text("diagnosis"),
-  solution: text("solution"),
   status: osStatusEnum("status").default("aguardando_aprovacao").notNull(),
   receivedById: integer("receivedById"),
   technicianId: integer("technicianId"),
@@ -208,12 +175,32 @@ export const serviceOrders = pgTable("serviceOrders", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
-// --- NOVA TABELA PARA USO DE COMPONENTES ---
+// --- NOVA TABELA DE EQUIPAMENTOS ---
+export const serviceOrderEquipments = pgTable("serviceOrderEquipments", {
+  id: serial("id").primaryKey(),
+  serviceOrderId: integer("serviceOrderId").references(() => serviceOrders.id).notNull(),
+  
+  equipment: varchar("equipment", { length: 255 }),
+  brand: varchar("brand", { length: 255 }),
+  model: varchar("model", { length: 255 }),
+  serialNumber: varchar("serialNumber", { length: 255 }),
+  equipmentDescription: text("equipmentDescription"),
+  reportedIssue: text("reportedIssue"),
+  diagnosis: text("diagnosis"),
+  solution: text("solution"),
+  
+  // Novos campos de custo itemizado
+  laborCost: decimal("laborCost", { precision: 10, scale: 2 }).default("0.00"),
+  partsCost: decimal("partsCost", { precision: 10, scale: 2 }).default("0.00"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export const serviceOrderComponents = pgTable("serviceOrderComponents", {
   id: serial("id").primaryKey(),
   serviceOrderId: integer("serviceOrderId").references(() => serviceOrders.id).notNull(),
   componentId: integer("componentId").references(() => components.id).notNull(),
-  quantity: integer("quantity").notNull(), // Quantidade usada
+  quantity: integer("quantity").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -268,6 +255,10 @@ export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
 
 export type ServiceOrder = typeof serviceOrders.$inferSelect;
 export type InsertServiceOrder = typeof serviceOrders.$inferInsert;
+
+// Novo tipo para Equipamentos
+export type ServiceOrderEquipment = typeof serviceOrderEquipments.$inferSelect;
+export type InsertServiceOrderEquipment = typeof serviceOrderEquipments.$inferInsert;
 
 export type ServiceOrderComponent = typeof serviceOrderComponents.$inferSelect;
 export type InsertServiceOrderComponent = typeof serviceOrderComponents.$inferInsert;
